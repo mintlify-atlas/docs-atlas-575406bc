@@ -94,7 +94,7 @@
   },
   "keyFeatures": [
     "Cross-chain USDC transfers via Circle's CCTP V2",
-    "Support for 18+ mainnet and 10+ testnet EVM chains",
+    "Support for 16 mainnet and 17 testnet EVM chains",
     "Fast Transfer mode (~8-20 seconds with fee)",
     "Standard Transfer mode (~13-19 minutes, no fee)",
     "Type-safe Go Ethereum V2 contract bindings",
