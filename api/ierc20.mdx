@@ -1,0 +1,392 @@
+---
+title: 'IERC20'
+description: 'ERC20 token contract binding for approval and balance operations using V2 bindings'
+---
+
+## Overview
+
+The `IERC20` binding provides Go functions to interact with ERC20 token contracts (like USDC). This binding uses the **abigen V2** pattern with `bind.Call` and `bind.Transact` for type-safe contract interactions.
+
+Primary use cases in CCTP:
+- **Checking USDC balance** before initiating a transfer
+- **Approving TokenMessenger** to spend USDC
+- **Verifying allowance** before burning tokens
+
+## Creating a Binding
+
+### NewIERC20
+
+Creates a new IERC20 binding instance.
+
+```go
+import "github.com/circlefin/cctp-go/tokenmessenger"
+
+// Create the binding
+ierc20 := tokenmessenger.NewIERC20()
+```
+
+**Returns:**
+- `*IERC20` - A new binding instance
+
+**Note:** This only creates the ABI wrapper. You must call `Instance()` to create a bound contract instance.
+
+## Creating Contract Instances
+
+### Instance
+
+Creates a wrapper for a deployed ERC20 token contract at the given address.
+
+```go
+import (
+    "github.com/circlefin/cctp-go/tokenmessenger"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/ethclient"
+)
+
+client, _ := ethclient.Dial("https://eth-mainnet.g.alchemy.com/v2/...")
+ierc20 := tokenmessenger.NewIERC20()
+
+// Create bound contract instance for USDC
+usdcAddress := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+instance := ierc20.Instance(client, usdcAddress)
+```
+
+**Parameters:**
+<ParamField path="backend" type="bind.ContractBackend" required>
+  Ethereum client connection
+</ParamField>
+
+<ParamField path="addr" type="common.Address" required>
+  ERC20 token contract address (e.g., USDC address)
+</ParamField>
+
+**Returns:**
+- `*bind.BoundContract` - Contract instance for use with `bind.Call` and `bind.Transact`
+
+## Main Functions
+
+### PackAllowance
+
+Packs parameters for checking the allowance granted to a spender.
+
+```go
+import (
+    "github.com/circlefin/cctp-go/tokenmessenger"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+ierc20 := tokenmessenger.NewIERC20()
+
+// Pack the allowance call
+allowanceData := ierc20.PackAllowance(
+    ownerAddr,       // Token owner address
+    spenderAddr,     // Spender address (e.g., TokenMessenger)
+)
+```
+
+**Parameters:**
+<ParamField path="owner" type="common.Address" required>
+  Address of the token owner
+</ParamField>
+
+<ParamField path="spender" type="common.Address" required>
+  Address that has been granted spending permission
+</ParamField>
+
+**Returns:**
+- `[]byte` - Packed call data
+
+### UnpackAllowance
+
+Unpacks the allowance amount returned from the contract.
+
+```go
+allowance, err := ierc20.UnpackAllowance(data)
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("Allowance: %s", allowance.String())
+```
+
+**Parameters:**
+<ParamField path="data" type="[]byte" required>
+  Return data from the allowance call
+</ParamField>
+
+**Returns:**
+- `*big.Int` - Current allowance amount
+- `error` - Error if unpacking fails
+
+### PackApprove
+
+Packs parameters for approving a spender to transfer tokens.
+
+```go
+import "math/big"
+
+ierc20 := tokenmessenger.NewIERC20()
+
+// Pack the approve call
+approveData := ierc20.PackApprove(
+    spenderAddr,              // Address to approve (e.g., TokenMessenger)
+    big.NewInt(1000000),      // Amount to approve (1 USDC)
+)
+```
+
+**Parameters:**
+<ParamField path="spender" type="common.Address" required>
+  Address to grant spending permission to
+</ParamField>
+
+<ParamField path="amount" type="*big.Int" required>
+  Amount of tokens to approve (in token's smallest unit)
+</ParamField>
+
+**Returns:**
+- `[]byte` - Packed transaction data
+
+### UnpackApprove
+
+Unpacks the success boolean returned from an approve call.
+
+```go
+success, err := ierc20.UnpackApprove(data)
+if err != nil {
+    log.Fatal(err)
+}
+if success {
+    log.Println("Approval successful")
+}
+```
+
+### PackBalanceOf
+
+Packs parameters for checking an account's token balance.
+
+```go
+ierc20 := tokenmessenger.NewIERC20()
+
+// Pack the balanceOf call
+balanceData := ierc20.PackBalanceOf(accountAddr)
+```
+
+**Parameters:**
+<ParamField path="account" type="common.Address" required>
+  Address to check balance for
+</ParamField>
+
+**Returns:**
+- `[]byte` - Packed call data
+
+### UnpackBalanceOf
+
+Unpacks the balance amount returned from the contract.
+
+```go
+balance, err := ierc20.UnpackBalanceOf(data)
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("Balance: %s USDC", new(big.Float).Quo(
+    new(big.Float).SetInt(balance),
+    big.NewFloat(1000000),
+))
+```
+
+**Parameters:**
+<ParamField path="data" type="[]byte" required>
+  Return data from the balanceOf call
+</ParamField>
+
+**Returns:**
+- `*big.Int` - Account balance
+- `error` - Error if unpacking fails
+
+## Complete Workflow: Checking Allowance and Approving
+
+<Steps>
+  <Step title="Create binding and instance">
+    ```go
+    ierc20 := tokenmessenger.NewIERC20()
+    usdcAddress := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+    instance := ierc20.Instance(client, usdcAddress)
+    ```
+  </Step>
+
+  <Step title="Check current allowance">
+    ```go
+    import "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+
+    // Pack and call allowance
+    allowance, err := bind.Call(instance, &bind.CallOpts{Context: ctx},
+        ierc20.PackAllowance(walletAddr, tokenMessengerAddr),
+        ierc20.UnpackAllowance,
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("Current allowance: %s", allowance.String())
+    ```
+  </Step>
+
+  <Step title="Approve if needed">
+    ```go
+    if allowance.Cmp(amountToTransfer) < 0 {
+        // Create transaction options
+        auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
+
+        // Pack and send approve transaction
+        approveTx, err := bind.Transact(
+            instance,
+            auth,
+            ierc20.PackApprove(tokenMessengerAddr, amountToTransfer),
+        )
+        if err != nil {
+            log.Fatal(err)
+        }
+        log.Printf("Approve tx: %s", approveTx.Hash().Hex())
+    }
+    ```
+  </Step>
+
+  <Step title="Wait for confirmation">
+    ```go
+    receipt, err := bind.WaitMined(ctx, client, approveTx.Hash())
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Println("Approval confirmed")
+    ```
+  </Step>
+
+  <Step title="Verify new allowance">
+    ```go
+    newAllowance, err := bind.Call(instance, &bind.CallOpts{Context: ctx},
+        ierc20.PackAllowance(walletAddr, tokenMessengerAddr),
+        ierc20.UnpackAllowance,
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    if newAllowance.Cmp(amountToTransfer) < 0 {
+        log.Fatal("Allowance not updated correctly")
+    }
+    ```
+  </Step>
+</Steps>
+
+## Usage Examples from SDK
+
+### Checking Allowance
+
+From `transfer.go:158-164`:
+
+```go
+// Create USDC contract instance for allowance and approval operations
+ierc20 := tokenmessenger.NewIERC20()
+usdcAddress := common.HexToAddress(t.params.SourceChain.USDC)
+usdcInstance := ierc20.Instance(t.sourceClient, usdcAddress)
+
+// Use V2 bindings to check allowance
+allowance, err := bind.Call(usdcInstance, &bind.CallOpts{Context: ctx},
+    ierc20.PackAllowance(t.wallet.Address, tokenMessengerAddr), ierc20.UnpackAllowance)
+```
+
+### Approving Tokens
+
+From `transfer.go:182-186`:
+
+```go
+// Use V2 bindings to send approve transaction
+approveTx, err := bind.Transact(usdcInstance, auth, ierc20.PackApprove(tokenMessengerAddr, t.params.Amount))
+if err != nil {
+    return fmt.Errorf("failed to send approve tx: %w", err)
+}
+```
+
+<Note>
+**USDC Decimals**
+
+USDC uses 6 decimals:
+- 1 USDC = 1,000,000 (smallest unit)
+- 0.5 USDC = 500,000
+- 100 USDC = 100,000,000
+
+Always use `big.Int` for token amounts to avoid precision loss.
+</Note>
+
+## V2 Binding Pattern Benefits
+
+Using the V2 binding pattern with `bind.Call` and `bind.Transact`:
+
+### For Read Operations (allowance, balanceOf):
+```go
+result, err := bind.Call(
+    instance,
+    &bind.CallOpts{Context: ctx},
+    ierc20.PackAllowance(owner, spender),
+    ierc20.UnpackAllowance,
+)
+```
+
+**Benefits:**
+- Type-safe return values
+- Automatic error handling
+- Context support for timeouts
+- No gas required
+
+### For Write Operations (approve):
+```go
+tx, err := bind.Transact(
+    instance,
+    auth,
+    ierc20.PackApprove(spender, amount),
+)
+```
+
+**Benefits:**
+- Automatic gas estimation
+- Nonce management
+- Transaction signing
+- Receipt retrieval with `bind.WaitMined`
+
+## Error Handling
+
+<Note>
+**Common Errors**
+
+- **"insufficient allowance"**: Need to call `approve` before `depositForBurn`
+- **"insufficient balance"**: Account doesn't have enough tokens
+- **"ERC20: approve from zero address"**: Invalid owner address
+- **"ERC20: approve to zero address"**: Invalid spender address
+
+Always verify balances and allowances before attempting transfers.
+</Note>
+
+## Related Functions
+
+### TryPackAllowance, TryPackApprove, TryPackBalanceOf
+
+Non-panicking versions that return errors:
+
+```go
+allowanceData, err := ierc20.TryPackAllowance(owner, spender)
+if err != nil {
+    log.Fatal(err)
+}
+
+approveData, err := ierc20.TryPackApprove(spender, amount)
+if err != nil {
+    log.Fatal(err)
+}
+
+balanceData, err := ierc20.TryPackBalanceOf(account)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+## See Also
+
+- [TokenMessengerV2](/api/token-messenger-v2) - For burning approved tokens
+- [MessageTransmitterV2](/api/message-transmitter-v2) - For receiving tokens on destination

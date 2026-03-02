@@ -1,0 +1,406 @@
+---
+title: 'RPC Overrides'
+description: 'Customize RPC endpoints for chain configurations'
+---
+
+## Overview
+
+While the SDK provides default public RPC endpoints for all supported chains, you may want to use custom RPC providers (Alchemy, Infura, QuickNode, etc.) for better performance, higher rate limits, or specific requirements.
+
+The `ApplyRPCOverrides` function allows you to override RPC URLs without modifying the rest of the chain configuration.
+
+## ApplyRPCOverrides
+
+```go chains.go:529
+func ApplyRPCOverrides(
+    chains []Chain,
+    overrides map[string]string,
+) []Chain
+```
+
+<ParamField path="chains" type="[]Chain" required>
+  Original chain configurations to modify
+</ParamField>
+
+<ParamField path="overrides" type="map[string]string" required>
+  Map of chain names to custom RPC URLs
+</ParamField>
+
+Returns a new slice of chains with overridden RPC endpoints. Original chain configurations are not modified.
+
+## Basic Usage
+
+```go
+// Get default mainnet chains
+chains := cctp.GetChains(false)
+
+// Define custom RPC endpoints
+overrides := map[string]string{
+    cctp.Ethereum:  "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    cctp.Avalanche: "https://avalanche-mainnet.infura.io/v3/YOUR_KEY",
+    cctp.Base:      "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+}
+
+// Apply overrides
+customChains := cctp.ApplyRPCOverrides(chains, overrides)
+
+// Use custom chains for lookups
+ethChain, _ := cctp.GetChainByName(cctp.Ethereum, false)
+for _, chain := range customChains {
+    if chain.Name == cctp.Ethereum {
+        ethChain = &chain
+        break
+    }
+}
+
+fmt.Printf("Using RPC: %s\n", ethChain.RPC)
+// Output: Using RPC: https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+```
+
+## Environment-Based Configuration
+
+<Tip>
+Load RPC URLs from environment variables to keep credentials out of source code.
+</Tip>
+
+```go
+import "os"
+
+func getCustomChains(testnet bool) []cctp.Chain {
+    chains := cctp.GetChains(testnet)
+    
+    overrides := make(map[string]string)
+    
+    // Load from environment
+    if rpc := os.Getenv("ETHEREUM_RPC"); rpc != "" {
+        overrides[cctp.Ethereum] = rpc
+    }
+    if rpc := os.Getenv("AVALANCHE_RPC"); rpc != "" {
+        overrides[cctp.Avalanche] = rpc
+    }
+    if rpc := os.Getenv("BASE_RPC"); rpc != "" {
+        overrides[cctp.Base] = rpc
+    }
+    
+    return cctp.ApplyRPCOverrides(chains, overrides)
+}
+
+// Usage
+chains := getCustomChains(false)
+sourceChain, _ := cctp.GetChainByName(cctp.Ethereum, false)
+for _, chain := range chains {
+    if chain.Name == cctp.Ethereum {
+        sourceChain = &chain
+        break
+    }
+}
+```
+
+## Configuration File
+
+Load RPC overrides from a JSON configuration file:
+
+<CodeGroup>
+  ```json config.json
+  {
+    "rpc_overrides": {
+      "Ethereum": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
+      "Avalanche": "https://avalanche-mainnet.infura.io/v3/YOUR_KEY",
+      "Base": "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+      "Arbitrum": "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    }
+  }
+  ```
+
+  ```go Load Configuration
+  import (
+      "encoding/json"
+      "os"
+  )
+  
+  type Config struct {
+      RPCOverrides map[string]string `json:"rpc_overrides"`
+  }
+  
+  func loadCustomChains(configPath string, testnet bool) ([]cctp.Chain, error) {
+      // Read config file
+      data, err := os.ReadFile(configPath)
+      if err != nil {
+          return nil, err
+      }
+      
+      // Parse config
+      var config Config
+      if err := json.Unmarshal(data, &config); err != nil {
+          return nil, err
+      }
+      
+      // Apply overrides
+      chains := cctp.GetChains(testnet)
+      return cctp.ApplyRPCOverrides(chains, config.RPCOverrides), nil
+  }
+  
+  // Usage
+  chains, err := loadCustomChains("config.json", false)
+  if err != nil {
+      log.Fatal(err)
+  }
+  ```
+</CodeGroup>
+
+## Partial Overrides
+
+You only need to override chains you're using. Unspecified chains keep their default RPCs:
+
+```go
+// Only override source and destination chains
+overrides := map[string]string{
+    params.SourceChain.Name: os.Getenv("SOURCE_RPC"),
+    params.DestChain.Name:   os.Getenv("DEST_RPC"),
+}
+
+chains := cctp.ApplyRPCOverrides(cctp.GetChains(false), overrides)
+
+// Find updated chain configs
+var sourceChain, destChain *cctp.Chain
+for i, chain := range chains {
+    if chain.Name == params.SourceChain.Name {
+        sourceChain = &chains[i]
+    }
+    if chain.Name == params.DestChain.Name {
+        destChain = &chains[i]
+    }
+}
+
+params.SourceChain = sourceChain
+params.DestChain = destChain
+```
+
+## Per-Environment Configuration
+
+<Tabs>
+  <Tab title="Production">
+    ```go
+    func getProductionChains() []cctp.Chain {
+        chains := cctp.GetChains(false) // Mainnet
+        
+        overrides := map[string]string{
+            cctp.Ethereum:  os.Getenv("PROD_ETHEREUM_RPC"),
+            cctp.Avalanche: os.Getenv("PROD_AVALANCHE_RPC"),
+            cctp.Base:      os.Getenv("PROD_BASE_RPC"),
+        }
+        
+        return cctp.ApplyRPCOverrides(chains, overrides)
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Staging">
+    ```go
+    func getStagingChains() []cctp.Chain {
+        chains := cctp.GetChains(true) // Testnet
+        
+        overrides := map[string]string{
+            cctp.EthereumSepolia: os.Getenv("STAGING_SEPOLIA_RPC"),
+            cctp.AvalancheFuji:   os.Getenv("STAGING_FUJI_RPC"),
+            cctp.BaseSepolia:     os.Getenv("STAGING_BASE_RPC"),
+        }
+        
+        return cctp.ApplyRPCOverrides(chains, overrides)
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Development">
+    ```go
+    func getDevelopmentChains() []cctp.Chain {
+        // Use defaults for development
+        return cctp.GetChains(true)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Integration with Transfer Orchestrator
+
+Apply RPC overrides before creating the orchestrator:
+
+```go
+package main
+
+import (
+    "os"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get base configurations
+    chains := cctp.GetChains(false)
+    
+    // Apply custom RPCs
+    overrides := map[string]string{
+        cctp.Ethereum: os.Getenv("ETHEREUM_RPC"),
+        cctp.Base:     os.Getenv("BASE_RPC"),
+    }
+    customChains := cctp.ApplyRPCOverrides(chains, overrides)
+    
+    // Find custom chain configs
+    var sourceChain, destChain *cctp.Chain
+    for i := range customChains {
+        if customChains[i].Name == cctp.Ethereum {
+            sourceChain = &customChains[i]
+        }
+        if customChains[i].Name == cctp.Base {
+            destChain = &customChains[i]
+        }
+    }
+    
+    // Create transfer params with custom chains
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           amount,
+        RecipientAddress: recipient,
+    }
+    
+    // Orchestrator will use custom RPC endpoints
+    orchestrator, err := cctp.NewTransferOrchestrator(
+        wallet,
+        params,
+        irisURL,
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer orchestrator.Close()
+}
+```
+
+## Implementation Details
+
+The function creates a new slice to avoid modifying the original:
+
+```go chains.go:532
+func ApplyRPCOverrides(chains []Chain, overrides map[string]string) []Chain {
+    if len(overrides) == 0 {
+        return chains
+    }
+    
+    result := make([]Chain, len(chains))
+    for i, chain := range chains {
+        result[i] = chain
+        if rpcURL, ok := overrides[chain.Name]; ok && rpcURL != "" {
+            result[i].RPC = rpcURL
+        }
+    }
+    return result
+}
+```
+
+<Note>
+Empty string values in the overrides map are ignored, keeping the original RPC endpoint.
+</Note>
+
+## RPC Provider Examples
+
+<CardGroup cols={2}>
+  <Card title="Alchemy">
+    ```bash
+    ETHEREUM_RPC="https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    BASE_RPC="https://base-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    ARBITRUM_RPC="https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    ```
+  </Card>
+  
+  <Card title="Infura">
+    ```bash
+    ETHEREUM_RPC="https://mainnet.infura.io/v3/YOUR_KEY"
+    AVALANCHE_RPC="https://avalanche-mainnet.infura.io/v3/YOUR_KEY"
+    POLYGON_RPC="https://polygon-mainnet.infura.io/v3/YOUR_KEY"
+    ```
+  </Card>
+  
+  <Card title="QuickNode">
+    ```bash
+    ETHEREUM_RPC="https://your-endpoint.quiknode.pro/YOUR_KEY/"
+    BASE_RPC="https://your-endpoint.quiknode.pro/YOUR_KEY/"
+    ```
+  </Card>
+  
+  <Card title="Ankr">
+    ```bash
+    ETHEREUM_RPC="https://rpc.ankr.com/eth/YOUR_KEY"
+    AVALANCHE_RPC="https://rpc.ankr.com/avalanche/YOUR_KEY"
+    POLYGON_RPC="https://rpc.ankr.com/polygon/YOUR_KEY"
+    ```
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Environment Variables">
+    Store RPC URLs in environment variables, never commit them to version control:
+    ```bash
+    export ETHEREUM_RPC="https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    export BASE_RPC="https://base-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    ```
+  </Step>
+  
+  <Step title="Validate URLs">
+    Test RPC endpoints before using them in production:
+    ```go
+    func validateRPC(rpcURL string) error {
+        client, err := ethclient.Dial(rpcURL)
+        if err != nil {
+            return err
+        }
+        defer client.Close()
+        
+        _, err = client.ChainID(context.Background())
+        return err
+    }
+    ```
+  </Step>
+  
+  <Step title="Fallback to Defaults">
+    Gracefully handle missing or invalid overrides:
+    ```go
+    customRPC := os.Getenv("ETHEREUM_RPC")
+    if customRPC == "" {
+        log.Println("Using default Ethereum RPC")
+    } else if err := validateRPC(customRPC); err != nil {
+        log.Printf("Invalid RPC, using default: %v", err)
+        customRPC = ""
+    }
+    ```
+  </Step>
+  
+  <Step title="Monitor RPC Health">
+    Implement health checks for custom RPC endpoints:
+    ```go
+    func checkRPCHealth(chains []cctp.Chain) {
+        for _, chain := range chains {
+            client, err := ethclient.Dial(chain.RPC)
+            if err != nil {
+                log.Printf("[%s] RPC unhealthy: %v", chain.Name, err)
+                continue
+            }
+            client.Close()
+            log.Printf("[%s] RPC healthy", chain.Name)
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chain Configuration" icon="link" href="/sdk/chains">
+    Learn about chain metadata and lookup functions
+  </Card>
+  <Card title="Transfer Orchestrator" icon="arrows-rotate" href="/sdk/transfer-orchestrator">
+    Use custom chains for transfers
+  </Card>
+</CardGroup>

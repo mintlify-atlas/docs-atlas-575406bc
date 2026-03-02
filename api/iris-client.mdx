@@ -1,0 +1,569 @@
+---
+title: "IrisClient"
+description: "Client for Circle's Iris attestation service"
+---
+
+## Overview
+
+The `IrisClient` is a client for interacting with Circle's Iris attestation service API. It handles fetching attestations, polling for message status, and retrieving fee information for CCTP transfers.
+
+## Type Definition
+
+```go
+type IrisClient struct {
+    baseURL    string
+    httpClient *http.Client
+}
+```
+
+## Constructor
+
+### NewIrisClient
+
+Creates a new Iris API client instance.
+
+```go
+func NewIrisClient(baseURL string) *IrisClient
+```
+
+#### Parameters
+
+<ParamField path="baseURL" type="string" required>
+  The base URL for the Iris API.
+  
+  - **Mainnet**: `https://iris-api.circle.com`
+  - **Testnet**: `https://iris-api-sandbox.circle.com`
+</ParamField>
+
+#### Returns
+
+<ResponseField name="*IrisClient" type="*IrisClient">
+  A new IrisClient instance configured with a 30-second HTTP timeout.
+</ResponseField>
+
+## Methods
+
+### GetMessages
+
+Fetches messages and attestations for a specific transaction.
+
+```go
+func (c *IrisClient) GetMessages(
+    ctx context.Context,
+    sourceDomain uint32,
+    txHash string,
+) (*MessagesResponse, error)
+```
+
+#### Parameters
+
+<ParamField path="ctx" type="context.Context" required>
+  The context for cancellation and timeout control.
+</ParamField>
+
+<ParamField path="sourceDomain" type="uint32" required>
+  The CCTP domain ID of the source chain where the burn transaction occurred.
+</ParamField>
+
+<ParamField path="txHash" type="string" required>
+  The transaction hash of the burn transaction (with or without "0x" prefix).
+</ParamField>
+
+#### Returns
+
+<ResponseField name="*MessagesResponse" type="*MessagesResponse">
+  The response containing an array of messages with their attestations and status.
+</ResponseField>
+
+<ResponseField name="error" type="error">
+  An error if the request fails, including rate limiting (429) or API errors.
+</ResponseField>
+
+### PollForAttestation
+
+Polls for an attestation until it's ready or the context is cancelled.
+
+```go
+func (c *IrisClient) PollForAttestation(
+    ctx context.Context,
+    sourceDomain uint32,
+    txHash string,
+    progressCallback func(attempt int, elapsed time.Duration),
+) (*Message, error)
+```
+
+#### Parameters
+
+<ParamField path="ctx" type="context.Context" required>
+  The context for cancellation and timeout control. The polling will continue until the context is cancelled or the attestation is ready.
+</ParamField>
+
+<ParamField path="sourceDomain" type="uint32" required>
+  The CCTP domain ID of the source chain.
+</ParamField>
+
+<ParamField path="txHash" type="string" required>
+  The transaction hash of the burn transaction.
+</ParamField>
+
+<ParamField path="progressCallback" type="func(attempt int, elapsed time.Duration)">
+  Optional callback function that receives progress updates. Called on each polling attempt with the attempt number and elapsed time.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="*Message" type="*Message">
+  The complete message with attestation when ready.
+</ResponseField>
+
+<ResponseField name="error" type="error">
+  An error if polling fails, including timeout, cancellation, or persistent API errors.
+</ResponseField>
+
+#### Polling Behavior
+
+- **Initial backoff**: 2 seconds
+- **Max backoff**: 10 seconds
+- **Backoff strategy**: Exponential with cap
+- **404 retries**: Up to 3 consecutive 404 errors before failing
+- **Automatic retry**: Non-fatal errors (attestation not ready, no messages found)
+
+### GetTransferFees
+
+Fetches the fee information for a transfer between two domains.
+
+```go
+func (c *IrisClient) GetTransferFees(
+    ctx context.Context,
+    sourceDomain uint32,
+    destDomain uint32,
+) (*FeesResponse, error)
+```
+
+#### Parameters
+
+<ParamField path="ctx" type="context.Context" required>
+  The context for cancellation and timeout control.
+</ParamField>
+
+<ParamField path="sourceDomain" type="uint32" required>
+  The CCTP domain ID of the source chain.
+</ParamField>
+
+<ParamField path="destDomain" type="uint32" required>
+  The CCTP domain ID of the destination chain.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="*FeesResponse" type="*FeesResponse">
+  The response containing fee information for different finality thresholds.
+</ResponseField>
+
+<ResponseField name="error" type="error">
+  An error if the request fails.
+</ResponseField>
+
+## Response Types
+
+### MessagesResponse
+
+```go
+type MessagesResponse struct {
+    Messages []Message `json:"messages"`
+}
+```
+
+### Message
+
+```go
+type Message struct {
+    Message        string            `json:"message"`
+    EventNonce     string            `json:"eventNonce"`
+    Attestation    string            `json:"attestation"`
+    DecodedMessage *DecodedMessage   `json:"decodedMessage"`
+    CctpVersion    int               `json:"cctpVersion"`
+    Status         AttestationStatus `json:"status"`
+    DelayReason    string            `json:"delayReason"`
+}
+```
+
+<ParamField path="Message" type="string">
+  The hex-encoded CCTP message bytes.
+</ParamField>
+
+<ParamField path="EventNonce" type="string">
+  The nonce of the message event.
+</ParamField>
+
+<ParamField path="Attestation" type="string">
+  The hex-encoded attestation signature (empty if not ready).
+</ParamField>
+
+<ParamField path="DecodedMessage" type="*DecodedMessage">
+  The decoded message fields.
+</ParamField>
+
+<ParamField path="CctpVersion" type="int">
+  The CCTP protocol version (1 or 2).
+</ParamField>
+
+<ParamField path="Status" type="AttestationStatus">
+  The attestation status: "pending" or "complete".
+</ParamField>
+
+<ParamField path="DelayReason" type="string">
+  Reason for delay if attestation is taking longer than expected.
+</ParamField>
+
+### DecodedMessage
+
+```go
+type DecodedMessage struct {
+    SourceDomain              string `json:"sourceDomain"`
+    DestinationDomain         string `json:"destinationDomain"`
+    Nonce                     string `json:"nonce"`
+    Sender                    string `json:"sender"`
+    Recipient                 string `json:"recipient"`
+    DestinationCaller         string `json:"destinationCaller"`
+    MinFinalityThreshold      string `json:"minFinalityThreshold"`
+    FinalityThresholdExecuted string `json:"finalityThresholdExecuted"`
+    MessageBody               string `json:"messageBody"`
+}
+```
+
+### FeesResponse
+
+```go
+type FeesResponse struct {
+    Data []FeeInfo `json:"data"`
+}
+```
+
+### FeeInfo
+
+```go
+type FeeInfo struct {
+    FinalityThreshold uint32 `json:"finalityThreshold"`
+    MinimumFee        uint32 `json:"minimumFee"` // in basis points (bps)
+}
+```
+
+<ParamField path="FinalityThreshold" type="uint32">
+  The finality threshold level:
+  - `1000` = Fast Transfer (~8-20 seconds)
+  - `2000` = Standard Transfer (~13-19 minutes)
+</ParamField>
+
+<ParamField path="MinimumFee" type="uint32">
+  The minimum fee in basis points (bps). For example, 14 bps = 0.14% fee.
+</ParamField>
+
+### AttestationStatus
+
+```go
+type AttestationStatus string
+
+const (
+    AttestationStatusPending  AttestationStatus = "pending"
+    AttestationStatusComplete AttestationStatus = "complete"
+)
+```
+
+## Usage Examples
+
+### Creating an Iris Client
+
+```go
+package main
+
+import (
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Mainnet client
+    mainnetClient := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    // Testnet client
+    testnetClient := cctp.NewIrisClient("https://iris-api-sandbox.circle.com")
+}
+```
+
+### Fetching Messages
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    ctx := context.Background()
+    client := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    // Fetch messages for a burn transaction
+    resp, err := client.GetMessages(
+        ctx,
+        0, // Ethereum domain
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    for _, msg := range resp.Messages {
+        fmt.Printf("Status: %s\n", msg.Status)
+        fmt.Printf("Has Attestation: %v\n", msg.Attestation != "")
+        if msg.DelayReason != "" {
+            fmt.Printf("Delay Reason: %s\n", msg.DelayReason)
+        }
+    }
+}
+```
+
+### Polling for Attestation
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+    
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    ctx := context.Background()
+    client := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    // Poll for attestation with progress updates
+    msg, err := client.PollForAttestation(
+        ctx,
+        0, // Ethereum domain
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        func(attempt int, elapsed time.Duration) {
+            fmt.Printf("Polling attempt %d (elapsed: %s)\n", attempt, elapsed.Round(time.Second))
+        },
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("Attestation received!\n")
+    fmt.Printf("Message: %s\n", msg.Message)
+    fmt.Printf("Attestation: %s\n", msg.Attestation)
+}
+```
+
+### Polling with Timeout
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+    
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Create context with 5 minute timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+    defer cancel()
+    
+    client := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    msg, err := client.PollForAttestation(
+        ctx,
+        0,
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        nil, // No progress callback
+    )
+    
+    if err != nil {
+        if ctx.Err() == context.DeadlineExceeded {
+            log.Fatal("Attestation polling timed out after 5 minutes")
+        }
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("Attestation received: %s\n", msg.Attestation)
+}
+```
+
+### Fetching Transfer Fees
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    ctx := context.Background()
+    client := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    // Fetch fees for Ethereum -> Base transfer
+    fees, err := client.GetTransferFees(
+        ctx,
+        0, // Ethereum domain
+        6, // Base domain
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    for _, feeInfo := range fees.Data {
+        var transferType string
+        if feeInfo.FinalityThreshold == 1000 {
+            transferType = "Fast Transfer"
+        } else {
+            transferType = "Standard Transfer"
+        }
+        
+        fmt.Printf("%s (threshold %d): %d bps (%.2f%%)\n",
+            transferType,
+            feeInfo.FinalityThreshold,
+            feeInfo.MinimumFee,
+            float64(feeInfo.MinimumFee)/100,
+        )
+    }
+}
+```
+
+### Calculating Fee Amount
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "math/big"
+    
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    ctx := context.Background()
+    client := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    // Fetch fees
+    fees, err := client.GetTransferFees(ctx, 0, 6)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Transfer amount: 1000 USDC
+    amount := big.NewInt(1000_000000)
+    
+    // Find Fast Transfer fee (threshold 1000)
+    for _, feeInfo := range fees.Data {
+        if feeInfo.FinalityThreshold == 1000 {
+            // Calculate fee: (amount * feeBps) / 10000
+            feeBps := big.NewInt(int64(feeInfo.MinimumFee))
+            fee := new(big.Int).Mul(amount, feeBps)
+            fee = fee.Div(fee, big.NewInt(10000))
+            
+            // Amount user receives after fee
+            amountAfterFee := new(big.Int).Sub(amount, fee)
+            
+            fmt.Printf("Transfer Amount: 1000 USDC\n")
+            fmt.Printf("Fee: %d bps (%.2f%%)\n", feeInfo.MinimumFee, float64(feeInfo.MinimumFee)/100)
+            fmt.Printf("Fee Amount: %s USDC\n", formatUSDC(fee))
+            fmt.Printf("Amount After Fee: %s USDC\n", formatUSDC(amountAfterFee))
+            break
+        }
+    }
+}
+
+func formatUSDC(amount *big.Int) string {
+    // USDC has 6 decimals
+    whole := new(big.Int).Div(amount, big.NewInt(1_000000))
+    fractional := new(big.Int).Mod(amount, big.NewInt(1_000000))
+    return fmt.Sprintf("%s.%06d", whole.String(), fractional.Int64())
+}
+```
+
+## Error Handling
+
+### Rate Limiting
+
+The Iris API has rate limits. When exceeded, you'll receive a 429 status code:
+
+```go
+resp, err := client.GetMessages(ctx, sourceDomain, txHash)
+if err != nil {
+    if strings.Contains(err.Error(), "rate limit exceeded") {
+        // Wait 5 minutes before retrying
+        time.Sleep(5 * time.Minute)
+    }
+}
+```
+
+### 404 Errors
+
+The API may return 404 if the transaction hasn't been indexed yet. The `PollForAttestation` method handles this automatically by retrying up to 3 times.
+
+### Attestation Delays
+
+If an attestation is taking longer than expected, check the `DelayReason` field:
+
+```go
+for _, msg := range resp.Messages {
+    if msg.Status == cctp.AttestationStatusPending && msg.DelayReason != "" {
+        fmt.Printf("Attestation delayed: %s\n", msg.DelayReason)
+    }
+}
+```
+
+## API Endpoints
+
+The IrisClient uses the following Circle API endpoints:
+
+- `GET /v2/messages/{sourceDomain}?transactionHash={txHash}` - Fetch messages
+- `GET /v2/burn/USDC/fees/{sourceDomain}/{destDomain}` - Fetch transfer fees
+
+<Note>
+**Rate Limits**: The Iris API enforces rate limits. If you exceed the limit, you'll receive a 429 error and should wait 5 minutes before retrying.
+</Note>
+
+## Helper Functions
+
+### EstimatedAttestationTime
+
+Returns the estimated time for attestation based on chain characteristics.
+
+```go
+func EstimatedAttestationTime(instantFinality bool) time.Duration
+```
+
+```go
+// Estimate attestation time
+estimated := cctp.EstimatedAttestationTime(sourceChain.InstantFinality)
+fmt.Printf("Estimated attestation time: %s\n", estimated)
+```
+
+## See Also
+
+- [TransferOrchestrator](/api/transfer-orchestrator) - Uses IrisClient for attestation polling
+- [TransferParams](/api/transfer-params) - Transfer configuration
+- [Chain](/api/chain) - Chain configuration including domain IDs

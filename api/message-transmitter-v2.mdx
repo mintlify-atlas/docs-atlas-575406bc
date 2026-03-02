@@ -1,0 +1,280 @@
+---
+title: 'MessageTransmitterV2'
+description: 'Contract binding for receiving cross-chain messages using V2 bindings'
+---
+
+## Overview
+
+The `MessageTransmitterV2` binding provides Go functions to interact with the MessageTransmitter smart contract, which handles receiving and processing cross-chain messages with attestations. This binding uses the **abigen V2** pattern with `bind.Call` and `bind.Transact` for type-safe contract interactions.
+
+## Creating a Binding
+
+### NewMessageTransmitterV2
+
+Creates a new MessageTransmitterV2 binding instance.
+
+```go
+import "github.com/circlefin/cctp-go/messagetransmitter"
+
+// Create the binding
+messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+```
+
+**Returns:**
+- `*MessageTransmitterV2` - A new binding instance
+
+**Note:** This only creates the ABI wrapper. You must call `Instance()` to create a bound contract instance.
+
+## Creating Contract Instances
+
+### Instance
+
+Creates a wrapper for a deployed contract instance at the given address.
+
+```go
+import (
+    "github.com/circlefin/cctp-go/messagetransmitter"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/ethclient"
+)
+
+client, _ := ethclient.Dial("https://base-mainnet.g.alchemy.com/v2/...")
+messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+
+// Create bound contract instance
+messageTransmitterAddr := common.HexToAddress("0xAD09780d193884d503182aD4588450C416D6F9D4")
+instance := messageTransmitterV2.Instance(client, messageTransmitterAddr)
+```
+
+**Parameters:**
+<ParamField path="backend" type="bind.ContractBackend" required>
+  Ethereum client connection
+</ParamField>
+
+<ParamField path="addr" type="common.Address" required>
+  MessageTransmitter contract address
+</ParamField>
+
+**Returns:**
+- `*bind.BoundContract` - Contract instance for use with `bind.Call` and `bind.Transact`
+
+## Main Functions
+
+### PackReceiveMessage
+
+Packs the parameters for the `receiveMessage` function, which processes an attested message on the destination chain to complete a cross-chain transfer.
+
+```go
+import (
+    "github.com/circlefin/cctp-go/messagetransmitter"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+
+// Decode hex strings from attestation API
+messageBytes := common.FromHex("0x000000000000...")
+attestationBytes := common.FromHex("0x1234abcd...")
+
+// Pack the receiveMessage call
+mintData := messageTransmitterV2.PackReceiveMessage(messageBytes, attestationBytes)
+```
+
+**Parameters:**
+<ParamField path="message" type="[]byte" required>
+  The CCTP message bytes returned from the attestation API
+</ParamField>
+
+<ParamField path="signature" type="[]byte" required>
+  The attestation signature bytes from Circle's attestation service
+</ParamField>
+
+**Returns:**
+- `[]byte` - Packed transaction data
+
+**Panics:**
+Panics if invalid parameters are provided. Use `TryPackReceiveMessage` for error handling.
+
+### UnpackReceiveMessage
+
+Unpacks the return value from a `receiveMessage` call.
+
+```go
+result, err := messageTransmitterV2.UnpackReceiveMessage(data)
+if err != nil {
+    log.Fatal(err)
+}
+if result {
+    log.Println("Message received successfully")
+}
+```
+
+**Parameters:**
+<ParamField path="data" type="[]byte" required>
+  The return data from the contract call
+</ParamField>
+
+**Returns:**
+- `bool` - Success status
+- `error` - Error if unpacking fails
+
+## Complete Workflow
+
+<Steps>
+  <Step title="Burn tokens on source chain">
+    Use [TokenMessengerV2](/api/token-messenger-v2) to call `depositForBurn` and get the transaction hash.
+  </Step>
+
+  <Step title="Wait for attestation">
+    Poll Circle's attestation API until the message is attested:
+    ```go
+    msg, err := irisClient.PollForAttestation(ctx, sourceDomain, txHash, onProgress)
+    ```
+  </Step>
+
+  <Step title="Create binding and instance">
+    ```go
+    messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+    messageTransmitterAddr := common.HexToAddress("0xAD09780d193884d503182aD4588450C416D6F9D4")
+    instance := messageTransmitterV2.Instance(destClient, messageTransmitterAddr)
+    ```
+  </Step>
+
+  <Step title="Pack the receiveMessage call">
+    ```go
+    // Decode attestation response
+    messageBytes := common.FromHex(msg.Message)
+    attestationBytes := common.FromHex(msg.Attestation)
+
+    // Pack the call
+    mintData := messageTransmitterV2.PackReceiveMessage(messageBytes, attestationBytes)
+    ```
+  </Step>
+
+  <Step title="Execute transaction with bind.Transact">
+    ```go
+    import "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+
+    // Create transaction options
+    auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, destChainID)
+
+    // Send transaction
+    tx, err := bind.Transact(instance, auth, mintData)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Mint transaction hash: %s", tx.Hash().Hex())
+    ```
+  </Step>
+
+  <Step title="Wait for confirmation">
+    ```go
+    receipt, err := bind.WaitMined(ctx, destClient, tx.Hash())
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("USDC minted in block %d", receipt.BlockNumber)
+    ```
+  </Step>
+</Steps>
+
+## Usage Example from SDK
+
+From `transfer.go:429-434`:
+
+```go
+// Create V2 message transmitter instance
+messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+messageTransmitterAddr := common.HexToAddress(t.params.DestChain.MessageTransmitterV2)
+messageTransmitterInstance := messageTransmitterV2.Instance(t.destClient, messageTransmitterAddr)
+
+// Pack the receiveMessage call
+mintData := messageTransmitterV2.PackReceiveMessage(messageBytes, attestationBytes)
+```
+
+And the transaction execution:
+
+```go
+// Create transaction options for mint (on destination chain)
+authDest, err := t.wallet.CreateTransactOpts(ctx, t.destClient, t.params.DestChain.ChainID)
+if err != nil {
+    return fmt.Errorf("failed to create auth: %w", err)
+}
+
+// Use V2 bindings to send receiveMessage transaction
+mintTx, err := bind.Transact(messageTransmitterInstance, authDest, mintData)
+if err != nil {
+    return fmt.Errorf("failed to send mint tx: %w", err)
+}
+```
+
+<Note>
+**Message Format**
+
+The message and attestation bytes must be obtained from Circle's attestation API:
+- **Message**: Contains the encoded burn transaction details
+- **Attestation**: Circle's signature validating the burn event
+
+Both must be decoded from hex strings before passing to `PackReceiveMessage`.
+</Note>
+
+## V2 Binding Pattern
+
+The V2 binding pattern provides better separation of concerns:
+
+1. **Pack methods** (`PackReceiveMessage`) - Encode function calls into transaction data
+2. **Unpack methods** (`UnpackReceiveMessage`) - Decode return values from call results
+3. **bind.Call** - Execute read-only contract calls
+4. **bind.Transact** - Send state-changing transactions
+
+### Benefits:
+- **Type Safety**: Compile-time checking of parameters
+- **Flexibility**: Can inspect/modify packed data before sending
+- **Error Handling**: Separate packing errors from transaction errors
+- **Testing**: Easier to mock and test contract interactions
+
+## Related Functions
+
+### TryPackReceiveMessage
+
+Non-panicking version that returns an error instead of panicking.
+
+```go
+mintData, err := messageTransmitterV2.TryPackReceiveMessage(messageBytes, attestationBytes)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### PackSendMessage
+
+For sending outbound messages (less commonly used, as `depositForBurn` handles this).
+
+```go
+messageData := messageTransmitterV2.PackSendMessage(
+    destinationDomain,
+    recipient,
+    destinationCaller,
+    minFinalityThreshold,
+    messageBody,
+)
+```
+
+## Error Handling
+
+<Note>
+**Common Errors**
+
+- **"Message already received"**: The message has been processed on the destination chain
+- **"Invalid attestation"**: The attestation signature is invalid or expired
+- **"Attestation threshold not met"**: Not enough attesters have signed (wait longer)
+- **"Invalid message format"**: Message bytes are malformed
+
+Always check transaction receipts and emitted events to verify successful execution.
+</Note>
+
+## See Also
+
+- [TokenMessengerV2](/api/token-messenger-v2) - For burning tokens on source chain
+- [IERC20](/api/ierc20) - For checking balances after minting

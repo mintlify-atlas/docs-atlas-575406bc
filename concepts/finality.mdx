@@ -1,0 +1,205 @@
+---
+title: "Finality"
+description: "Understanding finality thresholds and attestation timing in CCTP"
+---
+
+## Overview
+
+Finality refers to the point at which a blockchain transaction becomes irreversible. CCTP uses finality thresholds to determine when it's safe to issue attestations for cross-chain transfers.
+
+## Finality Thresholds
+
+CCTP V2 supports two finality threshold values:
+
+<CardGroup cols={2}>
+  <Card title="1000 - Fast Transfer" icon="bolt">
+    Lower threshold for faster attestations with a fee
+  </Card>
+  <Card title="2000 - Standard Transfer" icon="shield">
+    Higher threshold for secure, fee-free transfers
+  </Card>
+</CardGroup>
+
+### Fast Transfer (Threshold 1000)
+
+**Characteristics:**
+- **Attestation time:** ~8-20 seconds
+- **Fee:** 1-14 basis points depending on source chain
+- **Security level:** Lower finality threshold
+- **Use case:** Time-sensitive transfers where speed is critical
+
+```go
+// From transfer.go:234-241
+if transferType == TransferTypeFast {
+    minFinalityThreshold = 1000
+    transferTypeLabel = "Fast Transfer"
+} else {
+    minFinalityThreshold = 2000
+    transferTypeLabel = "Standard Transfer"
+}
+```
+
+### Standard Transfer (Threshold 2000)
+
+**Characteristics:**
+- **Attestation time:** ~13-19 minutes for most chains, ~8 seconds for instant finality chains
+- **Fee:** No fee (0 bps)
+- **Security level:** Higher finality threshold
+- **Use case:** Cost-sensitive transfers with no time constraints
+
+## Instant Finality Chains
+
+Some chains have **instant finality**, meaning transactions are final immediately after confirmation. For these chains, Standard Transfer is just as fast as Fast Transfer.
+
+### Mainnet Instant Finality Chains
+
+- **Avalanche** (Domain 1) - Avalanche consensus provides instant finality
+- **Polygon PoS** (Domain 7) - PoS mechanism with fast finality
+- **Sonic** (Domain 13) - Instant finality design
+- **Sei** (Domain 16) - Optimistic parallelization with instant finality
+- **XDC** (Domain 18) - XDPoS consensus with instant finality
+- **HyperEVM** (Domain 19) - Instant finality architecture
+
+### Testnet Instant Finality Chains
+
+- Avalanche Fuji (Domain 1)
+- Polygon PoS Amoy (Domain 7)
+- Sonic Testnet (Domain 13)
+- Sei Testnet (Domain 16)
+- XDC Apothem (Domain 18)
+- HyperEVM Testnet (Domain 19)
+- Arc Testnet (Domain 26)
+
+<Note>
+Fast Transfer is **not available** when instant finality chains are the source, as Standard Transfer already provides ~8 second attestations with no fee.
+</Note>
+
+## How Finality Works
+
+<Steps>
+  <Step title="Burn transaction confirmed">
+    User burns USDC on the source chain via TokenMessengerV2 contract
+  </Step>
+  
+  <Step title="Finality threshold reached">
+    The source chain waits for the specified finality threshold (1000 or 2000) to be reached
+  </Step>
+  
+  <Step title="Attestation issued">
+    Circle's Iris service validates the burn and issues an attestation
+  </Step>
+  
+  <Step title="Attestation retrieved">
+    The SDK polls the Iris API to retrieve the attestation
+  </Step>
+  
+  <Step title="Mint transaction">
+    The attestation is submitted to the destination chain to mint USDC
+  </Step>
+</Steps>
+
+## Attestation Timing
+
+### Fast Transfer Timing
+
+```go
+// From client.go:266-270
+func EstimatedAttestationTime(instantFinality bool) time.Duration {
+    if instantFinality {
+        return 10 * time.Second // ~8-10 seconds for instant finality
+    }
+    return 15 * time.Second // ~8-20 seconds for Fast Transfer
+}
+```
+
+### Standard Transfer Timing
+
+- **Regular EVM chains:** ~13-19 minutes
+- **Instant finality chains:** ~8-10 seconds
+
+## Auto-Selection Logic
+
+When using `TransferTypeAuto`, the SDK automatically selects the optimal transfer type:
+
+```go
+// From transfer.go:222-230
+transferType := t.params.TransferType
+if transferType == "" || transferType == TransferTypeAuto {
+    if t.params.SourceChain.InstantFinality {
+        transferType = TransferTypeStandard
+        log.Info("Auto-selected Standard Transfer (instant finality chain)")
+    } else {
+        transferType = TransferTypeFast
+        log.Info("Auto-selected Fast Transfer")
+    }
+}
+```
+
+**Logic:**
+- **Instant finality source chain** → Standard Transfer (no fee, same speed)
+- **Regular EVM source chain** → Fast Transfer (faster attestation with fee)
+
+## Checking Chain Finality
+
+You can check if a chain has instant finality:
+
+```go
+import "github.com/circlefin/cctp-go"
+
+chain, err := cctp.GetChainByName(cctp.Avalanche, false)
+if err != nil {
+    panic(err)
+}
+
+if chain.InstantFinality {
+    fmt.Println("This chain has instant finality")
+    fmt.Println("Standard Transfer will be fast (~8 seconds)")
+} else {
+    fmt.Println("This chain uses probabilistic finality")
+    fmt.Println("Consider Fast Transfer for speed (~8-20 seconds)")
+}
+```
+
+## Comparison Table
+
+| Chain Type | Fast Transfer | Standard Transfer |
+|------------|---------------|-------------------|
+| **Regular EVM** | ~8-20 seconds (with fee) | ~13-19 minutes (no fee) |
+| **Instant Finality** | Not available | ~8-10 seconds (no fee) |
+
+## Best Practices
+
+<Accordion title="When to use Fast Transfer">
+  - Time-sensitive applications (trading, arbitrage)
+  - Source chain is not an instant finality chain
+  - Fee is acceptable for your use case
+</Accordion>
+
+<Accordion title="When to use Standard Transfer">
+  - Cost is the primary concern
+  - Source chain has instant finality
+  - You can wait 13-19 minutes for regular EVM chains
+</Accordion>
+
+<Accordion title="When to use Auto mode">
+  - Building a general-purpose application
+  - Want the SDK to choose optimally based on chain capabilities
+  - Need consistent behavior across different chains
+</Accordion>
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Transfer Types" href="/concepts/transfer-types">
+    Learn about Fast and Standard transfers
+  </Card>
+  <Card title="Supported Chains" href="/concepts/supported-chains">
+    View all chains and their finality characteristics
+  </Card>
+  <Card title="Fees" href="/concepts/fees">
+    Understand fee calculation
+  </Card>
+  <Card title="IrisClient" href="/sdk/iris-client">
+    Attestation polling API
+  </Card>
+</CardGroup>

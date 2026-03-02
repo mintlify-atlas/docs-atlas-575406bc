@@ -1,0 +1,205 @@
+---
+title: ApplyRPCOverrides
+description: Apply custom RPC endpoint overrides to chain configurations
+---
+
+## Function Signature
+
+```go
+func ApplyRPCOverrides(chains []Chain, overrides map[string]string) []Chain
+```
+
+Applies custom RPC URL overrides from a map to the given chains. This allows integrating packages to customize RPC endpoints based on their configuration, such as using private RPC providers with API keys.
+
+## Parameters
+
+<ParamField path="chains" type="[]Chain" required>
+  Array of Chain structs to apply overrides to. Typically obtained from `GetChains()`, `GetMainnetChains()`, or `GetTestnetChains()`
+</ParamField>
+
+<ParamField path="overrides" type="map[string]string" required>
+  Map where keys are chain names and values are the override RPC URLs. Use chain name constants for type safety (e.g., `cctp.Ethereum`, `cctp.Arbitrum`)
+</ParamField>
+
+## Returns
+
+<ResponseField name="chains" type="[]Chain">
+  A new array of Chain structs with RPC URLs overridden where specified. The original chains slice is not mutated.
+  
+  **Behavior:**
+  - Matching chain names have their RPC field replaced with the override URL
+  - Empty string overrides are ignored (original RPC is preserved)
+  - Non-matching chain names are ignored
+  - Chains without overrides retain their default RPC URLs
+  - If overrides map is empty, returns the original chains unchanged
+</ResponseField>
+
+## Usage Example
+
+### Basic Override
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get chains with default RPC endpoints
+    chains := cctp.GetChains(false) // false = mainnet
+    
+    // Define custom RPC endpoints using chain name constants
+    customRPCs := map[string]string{
+        cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    }
+    
+    // Apply RPC overrides
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+    
+    // Now use chains with your custom RPC endpoints
+    for _, chain := range chains {
+        if chain.Name == cctp.Ethereum {
+            fmt.Printf("Ethereum RPC: %s\n", chain.RPC)
+            // Output: Ethereum RPC: https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+        }
+    }
+}
+```
+
+### Full Example from README
+
+```go
+package main
+
+import (
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get chains with default RPC endpoints
+    chains := cctp.GetChains(false) // false = mainnet
+
+    // Define custom RPC endpoints using the chain name constants
+    // This provides IDE autocomplete and prevents typos
+    customRPCs := map[string]string{
+        cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    }
+
+    // Apply RPC overrides
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+
+    // Now use chains with your custom RPC endpoints
+    for _, chain := range chains {
+        if chain.Name == cctp.Ethereum {
+            fmt.Printf("Ethereum RPC: %s\n", chain.RPC)
+        }
+    }
+}
+```
+
+### Configuration-based Overrides
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Load custom RPC URLs from environment variables or config
+    customRPCs := make(map[string]string)
+    
+    if ethRPC := os.Getenv("ETH_RPC_URL"); ethRPC != "" {
+        customRPCs[cctp.Ethereum] = ethRPC
+    }
+    if arbRPC := os.Getenv("ARB_RPC_URL"); arbRPC != "" {
+        customRPCs[cctp.Arbitrum] = arbRPC
+    }
+    if baseRPC := os.Getenv("BASE_RPC_URL"); baseRPC != "" {
+        customRPCs[cctp.Base] = baseRPC
+    }
+    
+    // Get chains and apply overrides
+    chains := cctp.GetChains(false)
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+    
+    // Chains now use custom RPCs where configured, defaults otherwise
+    fmt.Printf("Using %d chains\n", len(chains))
+}
+```
+
+### Testnet Overrides
+
+```go
+package main
+
+import (
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get testnet chains
+    chains := cctp.GetChains(true) // true = testnet
+    
+    // Override testnet RPC endpoints
+    customRPCs := map[string]string{
+        cctp.EthereumSepolia: "https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.BaseSepolia:     "https://base-sepolia.g.alchemy.com/v2/YOUR_API_KEY",
+    }
+    
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+    
+    // Use testnet chains with custom RPCs
+}
+```
+
+## Available Chain Constants
+
+### Mainnet
+
+`cctp.Ethereum`, `cctp.Avalanche`, `cctp.OPMainnet`, `cctp.Arbitrum`, `cctp.Base`, `cctp.PolygonPoS`, `cctp.Unichain`, `cctp.Linea`, `cctp.Codex`, `cctp.Sonic`, `cctp.WorldChain`, `cctp.Sei`, `cctp.XDC`, `cctp.HyperEVM`, `cctp.Ink`, `cctp.Plume`
+
+### Testnet
+
+`cctp.EthereumSepolia`, `cctp.AvalancheFuji`, `cctp.OPSepolia`, `cctp.ArbitrumSepolia`, `cctp.BaseSepolia`, `cctp.PolygonPoSAmoy`, `cctp.LineaSepolia`, `cctp.ArcTestnet`, `cctp.UnichainSepolia`, `cctp.CodexTestnet`, `cctp.SonicTestnet`, `cctp.WorldChainSepolia`, `cctp.SeiTestnet`, `cctp.XDCApothem`, `cctp.HyperEVMTestnet`, `cctp.InkTestnet`, `cctp.PlumeTestnet`
+
+## Important Notes
+
+<Note>
+  **Immutability**: The original chains slice is not mutated. The function returns a new slice with the overrides applied.
+</Note>
+
+<Note>
+  **Empty Overrides**: Empty string overrides are ignored, preserving the original RPC URL for that chain.
+</Note>
+
+<Note>
+  **Type Safety**: Use the chain name constants (e.g., `cctp.Ethereum`) for IDE autocomplete support and to avoid typos. String literals are still supported but must match exactly (case-sensitive).
+</Note>
+
+<Note>
+  **No-op Behavior**: If the overrides map is empty, the function returns the original chains unchanged.
+</Note>
+
+## Best Practices
+
+1. **Use constants**: Always use chain name constants for map keys to prevent typos
+2. **Environment-based**: Load RPC URLs from environment variables or configuration files
+3. **Validation**: Validate RPC URLs before passing them to this function
+4. **Fallback**: The default RPC URLs are always available as fallbacks
+5. **Security**: Never hardcode API keys; use environment variables or secure configuration
+
+## Related Functions
+
+- [GetChains](/api/get-chains) - Get all configured chains
+- [GetChainByDomain](/api/get-chain-by-domain) - Find a specific chain by its domain ID
+- [GetChainByName](/api/get-chain-by-name) - Find a specific chain by its name

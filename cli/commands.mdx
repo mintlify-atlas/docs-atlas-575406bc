@@ -1,0 +1,519 @@
+---
+title: CLI Commands
+description: Complete reference for all CCTP CLI commands, flags, and usage examples
+---
+
+The CCTP CLI provides commands for transferring USDC, resuming transfers, and managing configuration.
+
+## Command Structure
+
+All commands follow this structure:
+
+```bash
+cctp [command] [flags]
+```
+
+## Global Flags
+
+These flags are available for all commands:
+
+| Flag | Type | Description | Default |
+|------|------|-------------|--------|
+| `--config` | string | Path to config file | `$HOME/.cctp/config.yaml` |
+| `--testnet` | boolean | Use testnet instead of mainnet | `false` |
+| `--keystore` | string | Path to Ethereum keystore directory | OS-specific default |
+
+### Examples
+
+<CodeGroup>
+```bash Custom Config
+cctp transfer --config ./my-config.yaml
+```
+
+```bash Testnet Mode
+cctp transfer --testnet
+```
+
+```bash Custom Keystore
+cctp transfer --keystore /custom/path/to/keystore
+```
+
+```bash Combined Flags
+cctp transfer --testnet --keystore ~/.ethereum/keystore --config ./config.yaml
+```
+</CodeGroup>
+
+## transfer
+
+Start a new cross-chain USDC transfer using the interactive TUI.
+
+### Usage
+
+```bash
+cctp transfer [flags]
+```
+
+### Flags
+
+| Flag | Type | Description | Example |
+|------|------|-------------|--------|
+| `--source` | string | Source chain name | `ethereum`, `arbitrum` |
+| `--dest` | string | Destination chain name | `base`, `polygon` |
+| `--amount` | string | Amount of USDC to transfer | `100`, `1000.50` |
+| `--recipient` | string | Recipient address | `0x742d35Cc...` |
+| `--type` | string | Transfer type: `fast`, `standard`, or `auto` | Default: `auto` |
+
+<Note>
+  All flags are optional. If not provided, the interactive TUI will prompt you for the required information.
+</Note>
+
+### Transfer Types
+
+<Tabs>
+  <Tab title="auto (default)">
+    Automatically selects the best transfer type:
+    - Uses **Fast Transfer** when available (non-instant finality source chains)
+    - Uses **Standard Transfer** for instant finality source chains
+    
+    ```bash
+    cctp transfer --source ethereum --dest arbitrum --type auto
+    # Fast Transfer will be used (~8-20 seconds)
+    
+    cctp transfer --source avalanche --dest ethereum --type auto
+    # Standard Transfer will be used (~8 seconds, instant finality)
+    ```
+  </Tab>
+  
+  <Tab title="fast">
+    Use Fast Transfer explicitly:
+    - **Timing**: ~8-20 seconds
+    - **Fee**: 1-14 bps (0.01%-0.14%)
+    - **Availability**: Not available for instant finality source chains
+    
+    ```bash
+    cctp transfer --source ethereum --dest base --type fast
+    ```
+    
+    **Fees by chain**:
+    - Most chains: 1 bps (0.01%)
+    - Linea: 14 bps (0.14%)
+    - Ink, Plume: 2 bps (0.02%)
+  </Tab>
+  
+  <Tab title="standard">
+    Use Standard Transfer explicitly:
+    - **Timing**: ~13-19 minutes (most chains), ~8 seconds (instant finality chains)
+    - **Fee**: 0 bps (no fee)
+    - **Availability**: All chains
+    
+    ```bash
+    cctp transfer --source ethereum --dest arbitrum --type standard
+    ```
+    
+    Best for cost-conscious transfers or when speed isn't critical.
+  </Tab>
+</Tabs>
+
+### Examples
+
+<CodeGroup>
+```bash Interactive Mode
+# Launch TUI and enter all parameters interactively
+cctp transfer
+```
+
+```bash Pre-populate Chains
+# Specify source and destination, TUI prompts for amount and recipient
+cctp transfer --source ethereum --dest arbitrum
+```
+
+```bash Complete Transfer
+# Pre-populate all parameters, minimal interaction needed
+cctp transfer \
+  --source ethereum \
+  --dest polygon \
+  --amount 100 \
+  --recipient 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb \
+  --type fast
+```
+
+```bash Fast Transfer
+# Explicitly use Fast Transfer for speed (with fee)
+cctp transfer --source ethereum --dest base --type fast
+```
+
+```bash Standard Transfer
+# Use Standard Transfer to avoid fees (takes longer)
+cctp transfer \
+  --source ethereum \
+  --dest arbitrum \
+  --amount 1000 \
+  --type standard
+```
+
+```bash Instant Finality Chain
+# From Avalanche (instant finality) - completes in ~8 seconds
+cctp transfer --source avalanche --dest ethereum --amount 50
+# Auto-selects Standard Transfer, no fee, fast completion
+```
+
+```bash Testnet Transfer
+# Use testnet chains for testing
+cctp transfer \
+  --testnet \
+  --source "Ethereum Sepolia" \
+  --dest "Arbitrum Sepolia"
+```
+
+```bash Custom Config
+# Use specific config file
+cctp transfer --config ./my-config.yaml
+```
+</CodeGroup>
+
+### Chain Names
+
+<AccordionGroup>
+  <Accordion title="Mainnet Chains (18)">
+    Use these exact names (case-sensitive) for the `--source` and `--dest` flags:
+    
+    - `Ethereum`
+    - `Avalanche` (instant finality)
+    - `OP Mainnet`
+    - `Arbitrum`
+    - `Base`
+    - `Polygon PoS` (instant finality)
+    - `Unichain`
+    - `Linea`
+    - `Codex`
+    - `Sonic` (instant finality)
+    - `World Chain`
+    - `Sei` (instant finality)
+    - `XDC` (instant finality)
+    - `HyperEVM` (instant finality)
+    - `Ink`
+    - `Plume`
+    
+    <Note>
+      Instant finality chains only support Standard Transfer when used as source, but complete in ~8 seconds.
+    </Note>
+  </Accordion>
+  
+  <Accordion title="Testnet Chains (16)">
+    Use these exact names for testnet transfers (requires `--testnet` flag):
+    
+    - `Ethereum Sepolia`
+    - `Avalanche Fuji`
+    - `OP Sepolia`
+    - `Arbitrum Sepolia`
+    - `Base Sepolia`
+    - `Polygon PoS Amoy`
+    - `Unichain Sepolia`
+    - `Linea Sepolia`
+    - `Codex Testnet`
+    - `Sonic Testnet`
+    - `World Chain Sepolia`
+    - `Sei Testnet`
+    - `XDC Apothem`
+    - `HyperEVM Testnet`
+    - `Ink Testnet`
+    - `Plume Testnet`
+    - `Arc Testnet`
+  </Accordion>
+</AccordionGroup>
+
+### Interactive Flow
+
+When you run `cctp transfer`, the TUI guides you through these steps:
+
+<Steps>
+  <Step title="Wallet Selection">
+    If using keystore, select an account from available keystore files and enter password.
+  </Step>
+  
+  <Step title="Source Chain">
+    Select the source blockchain (where USDC will be transferred from).
+  </Step>
+  
+  <Step title="Destination Chain">
+    Select the destination blockchain (where USDC will be received).
+  </Step>
+  
+  <Step title="Transfer Type">
+    Choose Fast, Standard, or Auto transfer type. The CLI shows available options based on chain capabilities.
+  </Step>
+  
+  <Step title="Amount & Recipient">
+    Enter the amount of USDC to transfer and the recipient address.
+  </Step>
+  
+  <Step title="Confirmation">
+    Review all transfer details before confirming.
+  </Step>
+  
+  <Step title="Execution">
+    The CLI executes the transfer and displays real-time status updates.
+  </Step>
+</Steps>
+
+## resume
+
+Resume an existing transfer using the burn transaction hash.
+
+### Usage
+
+```bash
+cctp resume [tx-hash] [flags]
+```
+
+The transaction hash can be provided as:
+- A positional argument: `cctp resume 0x1234...`
+- A flag: `cctp resume --tx-hash 0x1234...`
+- Interactive prompt: `cctp resume` (TUI will ask for tx hash)
+
+### Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--tx-hash` | string | Burn transaction hash to resume |
+
+### Examples
+
+<CodeGroup>
+```bash Positional Argument
+cctp resume 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+```
+
+```bash Flag Style
+cctp resume --tx-hash 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+```
+
+```bash Interactive Prompt
+# TUI will prompt for transaction hash
+cctp resume
+```
+
+```bash Testnet Resume
+cctp resume --testnet 0x1234567890abcdef...
+```
+
+```bash Resume with Custom Config
+cctp resume --config ./config.yaml --tx-hash 0x1234...
+```
+</CodeGroup>
+
+### When to Use Resume
+
+Use the `resume` command when:
+
+- Your terminal was closed during a transfer
+- The CLI crashed or was interrupted
+- You want to monitor the status of a previous transfer
+- Network issues caused the transfer to pause
+
+<Note>
+  The resume command fetches the transfer state from the blockchain and Circle's attestation service, so you can resume from any point in the transfer process.
+</Note>
+
+### Finding Your Transaction Hash
+
+You can find the burn transaction hash:
+
+1. From your wallet's transaction history
+2. On a blockchain explorer (Etherscan, Arbiscan, etc.)
+3. From the CLI output during the initial transfer (look for "Burn transaction")
+
+## version
+
+Print the CLI version information.
+
+### Usage
+
+```bash
+cctp version
+```
+
+### Example Output
+
+```
+INFO CCTP CLI version version=0.2.0
+```
+
+### Why Check Version?
+
+- Verify successful installation
+- Confirm you're running the latest version
+- Report version when filing bug reports
+- Check compatibility with SDK versions
+
+## help
+
+Display help information for any command.
+
+### Usage
+
+<CodeGroup>
+```bash General Help
+cctp help
+cctp --help
+cctp -h
+```
+
+```bash Command-Specific Help
+cctp transfer --help
+cctp resume --help
+cctp version --help
+```
+
+```bash Subcommand Help
+cctp help transfer
+cctp help resume
+```
+</CodeGroup>
+
+## completion
+
+Generate shell completion scripts for faster command-line usage.
+
+### Usage
+
+```bash
+cctp completion [bash|zsh|fish|powershell]
+```
+
+### Shell-Specific Setup
+
+<Tabs>
+  <Tab title="Bash">
+    **One-time setup** (requires restart):
+    ```bash
+    cctp completion bash > /etc/bash_completion.d/cctp
+    ```
+    
+    **Current session only**:
+    ```bash
+    source <(cctp completion bash)
+    ```
+    
+    **Permanent setup** (add to `~/.bashrc`):
+    ```bash
+    echo 'source <(cctp completion bash)' >> ~/.bashrc
+    ```
+  </Tab>
+  
+  <Tab title="Zsh">
+    **Add to ~/.zshrc**:
+    ```bash
+    echo 'source <(cctp completion zsh)' >> ~/.zshrc
+    ```
+    
+    **Or install to completion directory**:
+    ```bash
+    cctp completion zsh > "${fpath[1]}/_cctp"
+    ```
+    
+    Then reload your shell:
+    ```bash
+    source ~/.zshrc
+    ```
+  </Tab>
+  
+  <Tab title="Fish">
+    **Install to Fish completions directory**:
+    ```bash
+    cctp completion fish > ~/.config/fish/completions/cctp.fish
+    ```
+    
+    Restart your shell or reload config:
+    ```bash
+    source ~/.config/fish/config.fish
+    ```
+  </Tab>
+  
+  <Tab title="PowerShell">
+    **Add to profile** (`$PROFILE`):
+    ```powershell
+    cctp completion powershell | Out-String | Invoke-Expression
+    ```
+    
+    **Or for current session**:
+    ```powershell
+    cctp completion powershell | Out-String | Invoke-Expression
+    ```
+  </Tab>
+</Tabs>
+
+### What Completion Provides
+
+- Command name completion: `cctp tr<TAB>` → `cctp transfer`
+- Flag completion: `cctp transfer --s<TAB>` → `cctp transfer --source`
+- Subcommand help: `cctp <TAB>` shows all available commands
+
+## Configuration Precedence
+
+When you use multiple configuration sources, the CLI applies them in this order (highest to lowest priority):
+
+1. **Command-line flags** (e.g., `--testnet`, `--keystore`)
+2. **Environment variables** (e.g., `CCTP_TESTNET=true`)
+3. **Configuration file** (`~/.cctp/config.yaml`)
+4. **Default values**
+
+### Example Precedence
+
+**Config file** (`~/.cctp/config.yaml`):
+```yaml
+network: mainnet
+keystore_path: ~/.ethereum/keystore
+```
+
+**Environment variable**:
+```bash
+export CCTP_TESTNET=true
+```
+
+**Command**:
+```bash
+cctp transfer --keystore /custom/path
+```
+
+**Result**:
+- `testnet`: `true` (env var overrides config)
+- `keystore_path`: `/custom/path` (flag overrides env and config)
+
+## Exit Codes
+
+The CLI uses standard exit codes:
+
+| Code | Meaning |
+|------|--------|
+| 0 | Success |
+| 1 | General error (configuration, validation, etc.) |
+| 2 | User cancelled operation |
+
+Use exit codes in scripts:
+
+```bash
+cctp transfer --source ethereum --dest arbitrum
+if [ $? -eq 0 ]; then
+  echo "Transfer successful"
+else
+  echo "Transfer failed"
+fi
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Learn how to set up config files and customize defaults
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Complete tutorial from installation to first transfer
+  </Card>
+  <Card title="SDK Reference" icon="book" href="/sdk/transfer-orchestrator">
+    Integrate CCTP into your application
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/cli/configuration#troubleshooting">
+    Common issues and solutions
+  </Card>
+</CardGroup>

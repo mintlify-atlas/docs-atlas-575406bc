@@ -1,122 +1,107 @@
 {
   "$schema": "https://mintlify.com/docs.json",
+  "name": "CCTP Go SDK",
   "theme": "mint",
-  "name": "Mint Starter Kit",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3b82f6",
+    "light": "#60a5fa",
+    "dark": "#1e40af"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/circlefin/cctp-go"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/circlefin/cctp-go"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "SDK Guide",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "sdk/overview",
+              "sdk/chains",
+              "sdk/iris-client",
+              "sdk/transfer-orchestrator",
+              "sdk/rpc-overrides",
+              "sdk/contract-bindings"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "CLI Guide",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "cli/overview",
+              "cli/installation",
+              "cli/commands",
+              "cli/configuration"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Concepts",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "concepts/transfer-types",
+              "concepts/supported-chains",
+              "concepts/finality",
+              "concepts/fees"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-transfer",
+              "examples/custom-rpcs",
+              "examples/attestation-polling",
+              "examples/cli-usage"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core Types",
             "pages": [
-              "api-reference/introduction"
+              "api/chain",
+              "api/transfer-params",
+              "api/transfer-orchestrator",
+              "api/iris-client"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Functions",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/get-chains",
+              "api/get-chain-by-domain",
+              "api/get-chain-by-name",
+              "api/apply-rpc-overrides"
+            ]
+          },
+          {
+            "group": "Contract Bindings",
+            "pages": [
+              "api/token-messenger-v2",
+              "api/message-transmitter-v2",
+              "api/ierc20"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,435 @@
+---
+title: "CLI Usage Examples"
+description: "Command-line examples for the CCTP CLI tool"
+---
+
+The CCTP CLI provides a terminal user interface (TUI) for executing cross-chain USDC transfers. This guide shows practical command-line examples.
+
+## Installation
+
+Install the CLI using Go:
+
+```bash
+go install github.com/circlefin/cctp-go/cmd/cctp
+```
+
+Make sure your `$GOPATH/bin` (or `$GOBIN`) is in your `PATH`.
+
+## Basic Commands
+
+### Transfer Command
+
+<CodeGroup>
+```bash Interactive Mode
+# Run with interactive TUI
+./bin/cctp transfer
+
+# Or run directly without building
+go run ./cmd/cli transfer
+```
+
+```bash Testnet
+# Use testnet
+./bin/cctp transfer --testnet
+```
+
+```bash Transfer Types
+# Specify transfer type
+./bin/cctp transfer --type fast      # Fast Transfer (~8-20 seconds, with fee)
+./bin/cctp transfer --type standard  # Standard Transfer (~13-19 minutes, no fee)
+./bin/cctp transfer --type auto      # Auto-select based on chain (default)
+```
+
+```bash Pre-populated
+# Pre-populate transfer details
+./bin/cctp transfer --source ethereum --dest arbitrum --amount 100 --recipient 0x... --type fast
+```
+</CodeGroup>
+
+### Resume Command
+
+```bash
+# Resume existing transfer
+./bin/cctp resume 0x...  # Provide burn transaction hash
+```
+
+### Keystore Configuration
+
+```bash
+# Specify keystore directory
+./bin/cctp --keystore ~/.ethereum/keystore transfer
+```
+
+## Complete Examples from Documentation
+
+These are the exact CLI examples from the CLI-USAGE.md file:
+
+```bash
+# Run with interactive TUI
+./bin/cctp transfer
+
+# Or run directly without building
+go run ./cmd/cli transfer
+
+# Use testnet
+./bin/cctp transfer --testnet
+
+# Specify transfer type
+./bin/cctp transfer --type fast      # Fast Transfer (~8-20 seconds, with fee)
+./bin/cctp transfer --type standard  # Standard Transfer (~13-19 minutes, no fee)
+./bin/cctp transfer --type auto      # Auto-select based on chain (default)
+
+# Pre-populate transfer details
+./bin/cctp transfer --source ethereum --dest arbitrum --amount 100 --recipient 0x... --type fast
+
+# Resume existing transfer
+./bin/cctp resume 0x...  # Provide burn transaction hash
+
+# Specify keystore directory
+./bin/cctp --keystore ~/.ethereum/keystore transfer
+```
+
+## Transfer Types
+
+<CodeGroup>
+```bash Fast Transfer
+# Fast Transfer - completed in ~8-20 seconds with a fee
+cctp transfer \
+  --source ethereum \
+  --dest arbitrum \
+  --amount 100 \
+  --recipient 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb \
+  --type fast
+```
+
+```bash Standard Transfer
+# Standard Transfer - takes ~13-19 minutes, no fee
+cctp transfer \
+  --source ethereum \
+  --dest base \
+  --amount 1000 \
+  --recipient 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb \
+  --type standard
+```
+
+```bash Auto Mode
+# Auto mode - uses Fast when available, falls back to Standard
+cctp transfer \
+  --source avalanche \
+  --dest ethereum \
+  --amount 50 \
+  --type auto
+```
+</CodeGroup>
+
+<Note>
+  **Auto Mode Behavior**
+  
+  - Automatically selects Fast Transfer when available
+  - Falls back to Standard Transfer for instant finality source chains (Avalanche, Polygon PoS, Sei, Sonic, XDC, HyperEVM, Arc)
+  - Recommended for most users
+</Note>
+
+## Wallet Authentication
+
+<CodeGroup>
+```bash Private Key
+# Set private key as environment variable
+export PRIVATE_KEY=0x1234567890abcdef...
+cctp transfer
+```
+
+```bash Keystore
+# Use keystore file (will prompt for password)
+cctp transfer --keystore ~/.ethereum/keystore
+```
+</CodeGroup>
+
+## Network Selection
+
+<CodeGroup>
+```bash Mainnet
+# Mainnet (default)
+cctp transfer --source ethereum --dest arbitrum
+```
+
+```bash Testnet
+# Testnet
+cctp transfer --testnet --source "Ethereum Sepolia" --dest "Arbitrum Sepolia"
+```
+</CodeGroup>
+
+<Tip>
+  When using testnet, chain names include "Sepolia" or "Testnet" suffixes (e.g., "Ethereum Sepolia", "Base Sepolia").
+</Tip>
+
+## Chain-Specific Examples
+
+### Instant Finality Chains
+
+These chains complete standard transfers in ~8 seconds:
+
+```bash
+# Avalanche - instant finality, no fast transfer needed
+cctp transfer --source avalanche --dest ethereum --amount 50
+
+# Polygon PoS - instant finality
+cctp transfer --source polygon --dest base --amount 100
+
+# Sonic - instant finality
+cctp transfer --source sonic --dest arbitrum --amount 75
+```
+
+### Regular EVM Chains
+
+These chains support both Fast and Standard transfers:
+
+```bash
+# Ethereum to Arbitrum - Fast Transfer
+cctp transfer --source ethereum --dest arbitrum --amount 100 --type fast
+
+# Base to OP Mainnet - Standard Transfer
+cctp transfer --source base --dest "OP Mainnet" --amount 200 --type standard
+```
+
+## Resume Transfers
+
+If a transfer is interrupted, resume it using the burn transaction hash:
+
+```bash
+# Interactive resume
+cctp resume
+
+# Resume with tx hash as argument
+cctp resume 0x1234567890abcdef...
+
+# Resume with tx hash as flag
+cctp resume --tx-hash 0x1234567890abcdef...
+
+# Resume on testnet
+cctp resume --testnet 0x1234567890abcdef...
+```
+
+## Configuration File
+
+Create a config file at `~/.cctp/config.yaml`:
+
+```yaml
+# Network preference
+network: mainnet
+
+# Keystore path
+keystore_path: ~/.ethereum/keystore
+
+# Custom RPC endpoints
+rpc_urls:
+  ethereum: https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+  arbitrum: https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY
+  polygon: https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
+
+# Default transfer values
+defaults:
+  amount: "100"
+  recipient: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+
+# Saved addresses
+saved_addresses:
+  - name: "My Wallet"
+    address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  - name: "Treasury"
+    address: "0x1234567890123456789012345678901234567890"
+```
+
+Then run commands without flags:
+
+```bash
+# Uses config file settings
+cctp transfer
+```
+
+## Environment Variables
+
+Set environment variables with the `CCTP_` prefix:
+
+```bash
+export CCTP_TESTNET=true
+export CCTP_KEYSTORE_PATH=/path/to/keystore
+export PRIVATE_KEY=0x...
+
+cctp transfer
+```
+
+## Configuration Precedence
+
+Configuration sources are applied in this order (highest to lowest):
+
+1. Command-line flags
+2. Environment variables (with `CCTP_` prefix)
+3. Configuration file
+4. Default values
+
+<Note>
+  **Example:** If you set `--testnet` flag, it overrides the `CCTP_TESTNET` environment variable and the `network: testnet` config file setting.
+</Note>
+
+## Common Use Cases
+
+<CodeGroup>
+```bash Quick Transfer
+# Fast, interactive transfer
+cctp transfer
+```
+
+```bash Scripted Transfer
+# Non-interactive with all parameters
+PRIVATE_KEY=0x... cctp transfer \
+  --source ethereum \
+  --dest arbitrum \
+  --amount 500 \
+  --recipient 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb \
+  --type fast
+```
+
+```bash Test Transfer
+# Test on testnet first
+cctp transfer \
+  --testnet \
+  --source "Ethereum Sepolia" \
+  --dest "Base Sepolia" \
+  --amount 10
+```
+
+```bash Production Transfer
+# Production transfer with custom RPC
+cctp transfer \
+  --source ethereum \
+  --dest base \
+  --amount 10000 \
+  --recipient 0x... \
+  --type fast \
+  --config ./production-config.yaml
+```
+</CodeGroup>
+
+## Available Commands
+
+### Help Commands
+
+```bash
+# General help
+cctp --help
+cctp help
+
+# Command-specific help
+cctp transfer --help
+cctp resume --help
+
+# Version information
+cctp version
+```
+
+### Shell Completion
+
+Generate shell completion scripts:
+
+<CodeGroup>
+```bash Bash
+# Generate completion script
+cctp completion bash > /etc/bash_completion.d/cctp
+
+# Or for current session
+source <(cctp completion bash)
+```
+
+```bash Zsh
+# Add to ~/.zshrc
+source <(cctp completion zsh)
+
+# Or generate to completion directory
+cctp completion zsh > "${fpath[1]}/_cctp"
+```
+
+```bash Fish
+cctp completion fish > ~/.config/fish/completions/cctp.fish
+```
+
+```powershell PowerShell
+cctp completion powershell | Out-String | Invoke-Expression
+```
+</CodeGroup>
+
+## Tips
+
+<Tip>
+  **Testnet First**: Always test transfers on testnet before using mainnet to familiarize yourself with the process.
+</Tip>
+
+<Tip>
+  **Save Configuration**: Create a config file with your preferred settings to avoid typing the same flags repeatedly.
+</Tip>
+
+<Tip>
+  **Use Constants**: When scripting, use exact chain names as they appear in the documentation (case-sensitive).
+</Tip>
+
+<Tip>
+  **Check Balances**: Make sure you have sufficient USDC and native tokens (for gas) on the source chain before initiating a transfer.
+</Tip>
+
+## Troubleshooting
+
+### No wallet source available
+
+```bash
+# Error: no wallet source available
+# Solution: Set PRIVATE_KEY or provide --keystore
+export PRIVATE_KEY=0x...
+# OR
+cctp transfer --keystore ~/.ethereum/keystore
+```
+
+### Chain not found
+
+```bash
+# Error: chain not found
+# Solution: Check chain name spelling (case-sensitive)
+cctp transfer --source ethereum --dest arbitrum  # Correct
+cctp transfer --source Ethereum --dest Arbitrum  # Also correct
+```
+
+### Rate limit exceeded
+
+```bash
+# Error: rate limit exceeded (429)
+# Solution: Wait 5 minutes before retrying
+sleep 300 && cctp resume 0x...
+```
+
+## Security Best Practices
+
+<Note>
+  **Security Recommendations**
+  
+  1. Never commit private keys to version control
+  2. Use environment variables or keystore files for private keys
+  3. Test on testnet before mainnet
+  4. Verify recipient addresses carefully
+  5. Don't commit config files with sensitive data
+</Note>
+
+## Related Documentation
+
+- [Basic Transfer Example](/examples/basic-transfer) - SDK usage
+- [Custom RPC Endpoints](/examples/custom-rpcs) - Configuring custom RPCs
+- [Supported Chains](/reference/supported-chains) - Complete chain list
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cli/commands">
+    Complete CLI command reference
+  </Card>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Detailed configuration guide
+  </Card>
+</CardGroup>

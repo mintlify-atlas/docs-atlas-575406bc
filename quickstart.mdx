@@ -1,80 +1,284 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Execute your first cross-chain USDC transfer in minutes using the CCTP Go SDK
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through executing a complete cross-chain USDC transfer using the CCTP Go SDK. You'll learn how to:
 
-### Step 1: Set up your local environment
+- Poll for attestations from Circle's Iris service
+- Query available chains and their configurations
+- Execute a full transfer workflow programmatically
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Note>
+  Make sure you've [installed the SDK](/installation) before proceeding.
+</Note>
 
-### Step 2: Deploy your changes
+## Basic attestation polling
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+The simplest use case is polling for an attestation after a burn transaction:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+```go
+package main
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+import (
+    "context"
+    "fmt"
+    "math/big"
 
-### Step 3: Go live
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/circlefin/cctp-go"
+)
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+func main() {
+    // Create an Iris client for attestations
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+
+    // Poll for an attestation
+    ctx := context.Background()
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        0, // source domain (Ethereum)
+        "0x...", // burn transaction hash
+        nil, // optional progress callback
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("Attestation received: %s\n", msg.Attestation)
+}
+```
+
+<Info>
+  The Iris API returns attestations from Circle's attestation service. The polling will continue until the attestation is available or the context is cancelled.
+</Info>
+
+## Working with chains
+
+Get information about supported chains:
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get available chains
+    chains := cctp.GetChains(false) // false = mainnet, true = testnet
+
+    // Print all chains
+    for _, chain := range chains {
+        fmt.Printf("Chain: %s, Domain: %d, ChainID: %s\n",
+            chain.Name, chain.Domain, chain.ChainID)
+    }
+
+    // Get a specific chain by domain
+    ethereum, err := cctp.GetChainByDomain(0, false)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("Ethereum RPC: %s\n", ethereum.RPC)
+
+    // Get a chain by name using constants
+    arbitrum, err := cctp.GetChainByName(cctp.Arbitrum, false)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("Arbitrum RPC: %s\n", arbitrum.RPC)
+}
+```
+
+<Tip>
+  Use the chain name constants (e.g., `cctp.Ethereum`, `cctp.Arbitrum`) for IDE autocomplete support and to avoid typos.
+</Tip>
+
+## Overriding RPC endpoints
+
+The library provides default RPC endpoints, but you can override them with custom endpoints:
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get chains with default RPC endpoints
+    chains := cctp.GetChains(false) // false = mainnet
+
+    // Define custom RPC endpoints using the chain name constants
+    customRPCs := map[string]string{
+        cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    }
+
+    // Apply RPC overrides
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+
+    // Now use chains with your custom RPC endpoints
+    for _, chain := range chains {
+        if chain.Name == cctp.Ethereum {
+            fmt.Printf("Ethereum RPC: %s\n", chain.RPC)
+        }
+    }
+}
+```
+
+<Info>
+  **Available chain constants:**
+  
+  **Mainnet:** `cctp.Ethereum`, `cctp.Avalanche`, `cctp.OPMainnet`, `cctp.Arbitrum`, `cctp.Base`, `cctp.PolygonPoS`, `cctp.Unichain`, `cctp.Linea`, `cctp.Codex`, `cctp.Sonic`, `cctp.WorldChain`, `cctp.Sei`, `cctp.XDC`, `cctp.HyperEVM`, `cctp.Ink`, `cctp.Plume`
+  
+  **Testnet:** `cctp.EthereumSepolia`, `cctp.AvalancheFuji`, `cctp.OPSepolia`, `cctp.ArbitrumSepolia`, `cctp.BaseSepolia`, `cctp.PolygonPoSAmoy`, `cctp.LineaSepolia`, `cctp.ArcTestnet`, `cctp.UnichainSepolia`, `cctp.CodexTestnet`, `cctp.SonicTestnet`, `cctp.WorldChainSepolia`, `cctp.SeiTestnet`, `cctp.XDCApothem`, `cctp.HyperEVMTestnet`, `cctp.InkTestnet`, `cctp.PlumeTestnet`
+</Info>
+
+## Contract interactions
+
+Interact with USDC and CCTP contracts using V2 bindings:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "math/big"
+
+    "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/ethclient"
+    "github.com/circlefin/cctp-go/tokenmessenger"
+)
+
+func main() {
+    // Connect to a chain
+    client, err := ethclient.Dial("https://ethereum-rpc.publicnode.com")
+    if err != nil {
+        panic(err)
+    }
+
+    // Create V2 contract binding
+    ctx := context.Background()
+    ierc20 := tokenmessenger.NewIERC20()
+    usdcAddress := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+    usdcInstance := ierc20.Instance(client, usdcAddress)
+
+    // Check USDC balance using V2 bindings
+    walletAddress := common.HexToAddress("0x...")
+    balance, err := bind.Call(usdcInstance, &bind.CallOpts{Context: ctx},
+        ierc20.PackBalanceOf(walletAddress), ierc20.UnpackBalanceOf)
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("USDC Balance: %s\n", balance.String())
+}
+```
+
+<Note>
+  The SDK uses [Go Ethereum V2 Contract Bindings](https://geth.ethereum.org/docs/developers/dapp-developer/native-bindings-v2) for type-safe contract interactions.
+</Note>
+
+## Full transfer example
+
+For a complete example of orchestrating a full CCTP transfer with approval, burn, attestation polling, and mint, see the transfer orchestrator in your application.
+
+The `TransferOrchestrator` handles the entire workflow:
+
+<Steps>
+  <Step title="Check balance">
+    Verify the wallet has sufficient USDC for the transfer
+  </Step>
+  
+  <Step title="Check allowance">
+    Verify USDC allowance for the TokenMessengerV2 contract
+  </Step>
+  
+  <Step title="Approve (if needed)">
+    Approve USDC spending if allowance is insufficient
+  </Step>
+  
+  <Step title="Burn USDC">
+    Call `depositForBurn` on the source chain
+  </Step>
+  
+  <Step title="Poll for attestation">
+    Wait for Circle's attestation service to sign the message
+  </Step>
+  
+  <Step title="Mint USDC">
+    Call `receiveMessage` on the destination chain
+  </Step>
+</Steps>
+
+<Info>
+  See the [CLI implementation](https://github.com/circlefin/cctp-go/blob/main/cmd/cli/main.go) for a complete working example of the full transfer workflow.
+</Info>
+
+## Transfer types
+
+The SDK supports two transfer types:
+
+<CodeGroup>
+  ```go Fast Transfer
+  params := &cctp.TransferParams{
+      SourceChain:      sourceChain,
+      DestChain:        destChain,
+      Amount:           amount,
+      RecipientAddress: recipient,
+      TransferType:     cctp.TransferTypeFast, // ~8-20 seconds, with fee
+  }
+  ```
+  
+  ```go Standard Transfer
+  params := &cctp.TransferParams{
+      SourceChain:      sourceChain,
+      DestChain:        destChain,
+      Amount:           amount,
+      RecipientAddress: recipient,
+      TransferType:     cctp.TransferTypeStandard, // ~13-19 minutes, no fee
+  }
+  ```
+  
+  ```go Auto Transfer
+  params := &cctp.TransferParams{
+      SourceChain:      sourceChain,
+      DestChain:        destChain,
+      Amount:           amount,
+      RecipientAddress: recipient,
+      TransferType:     cctp.TransferTypeAuto, // Auto-select (default)
+  }
+  ```
+</CodeGroup>
+
+<Tip>
+  Use `TransferTypeAuto` to automatically select the best transfer type based on chain capabilities. The SDK will use Fast Transfer when available, or Standard Transfer for instant finality chains.
+</Tip>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="SDK overview" icon="book" href="/sdk/overview">
+    Explore all SDK features and APIs
+  </Card>
+  
+  <Card title="CLI usage" icon="terminal" href="/examples/cli-usage">
+    Learn how to use the CLI tool
+  </Card>
+  
+  <Card title="Transfer orchestration" icon="diagram-project" href="/sdk/transfer-orchestrator">
+    Deep dive into the transfer workflow
+  </Card>
+  
+  <Card title="Chain configuration" icon="link" href="/sdk/chains">
+    Learn about chain configurations and constants
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

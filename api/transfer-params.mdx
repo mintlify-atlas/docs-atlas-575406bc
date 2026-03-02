@@ -1,0 +1,284 @@
+---
+title: "TransferParams"
+description: "Parameters for initiating a CCTP transfer"
+---
+
+## Overview
+
+The `TransferParams` struct holds all the parameters required to initiate a CCTP transfer between two blockchains. This includes source and destination chains, transfer amount, recipient address, and transfer type preferences.
+
+## Type Definition
+
+```go
+type TransferParams struct {
+    SourceChain      *Chain
+    DestChain        *Chain
+    Amount           *big.Int
+    RecipientAddress common.Address
+    Testnet          bool
+    TransferType     TransferType
+    CachedBalance    *big.Int
+}
+```
+
+## Fields
+
+<ParamField path="SourceChain" type="*Chain" required>
+  The source blockchain from which USDC will be burned. Must be a valid CCTP-supported chain.
+</ParamField>
+
+<ParamField path="DestChain" type="*Chain" required>
+  The destination blockchain where USDC will be minted. Must be a valid CCTP-supported chain.
+</ParamField>
+
+<ParamField path="Amount" type="*big.Int" required>
+  The amount of USDC to transfer, in the smallest unit (6 decimals for USDC).
+  
+  For example, to transfer 10 USDC:
+  ```go
+  amount := big.NewInt(10_000000) // 10 USDC with 6 decimals
+  ```
+</ParamField>
+
+<ParamField path="RecipientAddress" type="common.Address" required>
+  The Ethereum address that will receive the USDC on the destination chain.
+</ParamField>
+
+<ParamField path="Testnet" type="bool" required>
+  Indicates whether to use testnet (true) or mainnet (false) networks.
+</ParamField>
+
+<ParamField path="TransferType" type="TransferType" default="TransferTypeAuto">
+  The type of transfer to perform:
+  - `TransferTypeFast` - Fast Transfer (~8-20 seconds, with fee)
+  - `TransferTypeStandard` - Standard Transfer (~13-19 minutes, no fee)
+  - `TransferTypeAuto` - Auto-select based on chain capabilities (default)
+  
+  When set to `TransferTypeAuto`, the SDK will automatically choose:
+  - Standard Transfer for chains with instant finality (no fee)
+  - Fast Transfer for chains without instant finality (small fee applies)
+</ParamField>
+
+<ParamField path="CachedBalance" type="*big.Int">
+  Optional pre-fetched USDC balance to skip redundant balance checks. If provided, the orchestrator will use this value instead of making an additional RPC call to check the balance.
+  
+  This is useful when you've already fetched the balance in your UI and want to avoid duplicate network requests.
+</ParamField>
+
+## Transfer Types
+
+### TransferType Constants
+
+```go
+type TransferType string
+
+const (
+    TransferTypeFast     TransferType = "fast"     // Fast Transfer (~8-20 seconds, with fee)
+    TransferTypeStandard TransferType = "standard" // Standard Transfer (~13-19 minutes, no fee)
+    TransferTypeAuto     TransferType = "auto"     // Auto-select based on chain capabilities
+)
+```
+
+<Note>
+**Fast Transfer**: Pays a small fee (typically 5-14 bps depending on the route) for attestation in ~8-20 seconds.
+
+**Standard Transfer**: No fee, but requires waiting for blockchain finality (~13-19 minutes on most EVM chains).
+
+**Auto Mode**: Recommended for most use cases. Automatically selects the optimal transfer type based on chain capabilities.
+</Note>
+
+## Usage Examples
+
+### Basic Transfer (Auto Mode)
+
+```go
+package main
+
+import (
+    "math/big"
+    "github.com/circlefin/cctp-go"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    // Get source and destination chains
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Base", false)
+    
+    // Create transfer parameters
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(100_000000), // 100 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeAuto, // Auto-select transfer type
+    }
+}
+```
+
+### Fast Transfer (Explicit)
+
+```go
+package main
+
+import (
+    "math/big"
+    "github.com/circlefin/cctp-go"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Arbitrum", false)
+    
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(500_000000), // 500 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeFast, // Force Fast Transfer
+    }
+}
+```
+
+### Standard Transfer (No Fee)
+
+```go
+package main
+
+import (
+    "math/big"
+    "github.com/circlefin/cctp-go"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Avalanche", false)
+    
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(1000_000000), // 1000 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeStandard, // Force Standard Transfer (no fee)
+    }
+}
+```
+
+### Testnet Transfer
+
+```go
+package main
+
+import (
+    "math/big"
+    "github.com/circlefin/cctp-go"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    // Get testnet chains
+    sourceChain, _ := cctp.GetChainByName("Ethereum Sepolia", true)
+    destChain, _ := cctp.GetChainByName("Base Sepolia", true)
+    
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(10_000000), // 10 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          true, // Use testnet networks
+        TransferType:     cctp.TransferTypeAuto,
+    }
+}
+```
+
+### Using Cached Balance
+
+```go
+package main
+
+import (
+    "context"
+    "math/big"
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/util"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/ethclient"
+)
+
+func main() {
+    ctx := context.Background()
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Base", false)
+    
+    // Fetch balance once (e.g., in UI)
+    client, _ := ethclient.Dial(sourceChain.RPC)
+    usdcAddress := common.HexToAddress(sourceChain.USDC)
+    walletAddress := common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb")
+    balance, _ := util.GetUSDCBalance(ctx, client, usdcAddress, walletAddress)
+    
+    // Reuse cached balance to avoid redundant RPC call
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(50_000000), // 50 USDC
+        RecipientAddress: walletAddress,
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeAuto,
+        CachedBalance:    balance, // Use pre-fetched balance
+    }
+}
+```
+
+### Amount Conversion Helper
+
+```go
+package main
+
+import (
+    "fmt"
+    "math/big"
+)
+
+// Helper function to convert USDC amount to big.Int
+func usdcAmount(amount float64) *big.Int {
+    // USDC has 6 decimals
+    amountWithDecimals := amount * 1_000000
+    return big.NewInt(int64(amountWithDecimals))
+}
+
+func main() {
+    // Convert 123.45 USDC to big.Int
+    amount := usdcAmount(123.45)
+    fmt.Printf("Amount: %s\n", amount.String()) // Output: 123450000
+}
+```
+
+## Validation
+
+The `TransferOrchestrator` will validate the parameters and check:
+
+1. **Balance Sufficiency**: Ensures the wallet has enough USDC to cover the transfer amount
+2. **Chain Validity**: Verifies both source and destination chains are valid CCTP chains
+3. **Amount Validity**: Ensures the amount is greater than zero
+4. **Address Validity**: Verifies the recipient address is a valid Ethereum address
+
+## Fee Calculation
+
+Fees are automatically calculated based on the transfer type:
+
+- **Fast Transfer**: Fee is calculated as `(amount * feeBps) / 10000` where `feeBps` is fetched from the Iris API
+- **Standard Transfer**: No fee (fee = 0)
+- **Auto Mode**: Automatically selects the appropriate fee structure
+
+The SDK adds a 1 bps safety buffer to the fee to account for potential fluctuations.
+
+## See Also
+
+- [Chain](/api/chain) - Blockchain configuration reference
+- [TransferOrchestrator](/api/transfer-orchestrator) - Execute transfers with these parameters
+- [IrisClient](/api/iris-client) - Fetch fee information and attestations

@@ -1,0 +1,673 @@
+---
+title: CLI Configuration
+description: Configure the CCTP CLI with config files, keystore setup, environment variables, and custom RPC endpoints
+---
+
+The CCTP CLI supports flexible configuration through multiple sources, allowing you to customize defaults, RPC endpoints, and wallet authentication.
+
+## Configuration Sources
+
+The CLI uses [Viper](https://github.com/spf13/viper) to load configuration from multiple sources with clear precedence:
+
+<Steps>
+  <Step title="Command-line flags">
+    Highest priority - overrides all other sources
+    ```bash
+    cctp transfer --testnet --keystore /custom/path
+    ```
+  </Step>
+  
+  <Step title="Environment variables">
+    Second priority - prefix with `CCTP_`
+    ```bash
+    export CCTP_TESTNET=true
+    export CCTP_KEYSTORE_PATH=/path/to/keystore
+    ```
+  </Step>
+  
+  <Step title="Configuration file">
+    Third priority - `~/.cctp/config.yaml` or `./config.yaml`
+    ```yaml
+    network: testnet
+    keystore_path: ~/.ethereum/keystore
+    ```
+  </Step>
+  
+  <Step title="Default values">
+    Lowest priority - built-in defaults
+  </Step>
+</Steps>
+
+## Configuration File
+
+The CLI looks for configuration files in these locations (in order):
+
+1. Path specified by `--config` flag
+2. `$HOME/.cctp/config.yaml`
+3. `./config.yaml` (current directory)
+
+### Creating a Config File
+
+<CodeGroup>
+```yaml Full Example
+# Network preference
+network: mainnet  # or "testnet"
+
+# Keystore path (optional - uses OS-specific defaults if omitted)
+keystore_path: ~/.ethereum/keystore
+
+# Custom RPC endpoints (optional)
+rpc_urls:
+  Ethereum: https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Arbitrum: https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Base: https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Polygon PoS: https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
+
+# Default transfer values (optional)
+defaults:
+  amount: "100"
+  recipient: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+
+# Saved addresses for quick access (optional)
+saved_addresses:
+  - name: "My Wallet"
+    address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  - name: "Treasury"
+    address: "0x1234567890123456789012345678901234567890"
+  - name: "Partner"
+    address: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+```
+
+```yaml Minimal Example
+# Simplest config - just set network preference
+network: testnet
+```
+
+```yaml Testnet with RPC
+# Testnet configuration with custom RPCs
+network: testnet
+
+rpc_urls:
+  Ethereum Sepolia: https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+  Arbitrum Sepolia: https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY
+```
+
+```yaml Development Config
+# Development setup with defaults
+network: testnet
+keystore_path: ./test-keystore
+
+defaults:
+  amount: "10"
+  recipient: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+```
+</CodeGroup>
+
+### Configuration Options
+
+| Option | Type | Description | Default |
+|--------|------|-------------|--------|
+| `network` | string | `mainnet` or `testnet` | `mainnet` |
+| `keystore_path` | string | Path to Ethereum keystore directory | OS-specific |
+| `rpc_urls` | map | Custom RPC endpoints by chain name | Built-in defaults |
+| `defaults.amount` | string | Default transfer amount | (none) |
+| `defaults.recipient` | string | Default recipient address | (none) |
+| `saved_addresses` | array | Named addresses for quick access | (none) |
+
+<Note>
+  Chain names in `rpc_urls` must match exactly (case-sensitive). Use the full chain names like `Ethereum`, `Arbitrum`, `OP Mainnet`, etc.
+</Note>
+
+## Wallet Authentication
+
+The CLI supports two methods for wallet authentication:
+
+### 1. Private Key (Environment Variable)
+
+The simplest method for programmatic usage or testing:
+
+```bash
+export PRIVATE_KEY=0x1234567890abcdef...
+cctp transfer
+```
+
+<Warning>
+  **Security Warning**: Never commit private keys to version control or share them. Use this method only for development or in secure environments.
+</Warning>
+
+**When to use**:
+- Automated scripts
+- CI/CD pipelines (with secret management)
+- Development and testing
+- Single-account scenarios
+
+### 2. Keystore File
+
+More secure method using encrypted keystore files with password protection:
+
+```bash
+cctp transfer --keystore ~/.ethereum/keystore
+```
+
+The CLI will:
+1. List available accounts from the keystore directory
+2. Prompt you to select an account
+3. Ask for the password to decrypt the keystore
+
+**When to use**:
+- Production environments
+- Multiple account management
+- Enhanced security with password protection
+- When sharing wallets across applications (e.g., with Geth, Metamask export)
+
+### Default Keystore Locations
+
+<Tabs>
+  <Tab title="macOS">
+    ```
+    ~/Library/Ethereum/keystore
+    ```
+    
+    The CLI automatically checks this location if no `--keystore` flag is provided.
+  </Tab>
+  
+  <Tab title="Linux">
+    ```
+    ~/.ethereum/keystore
+    ```
+    
+    Standard Geth keystore location on Linux systems.
+  </Tab>
+  
+  <Tab title="Windows">
+    ```
+    %APPDATA%\Ethereum\keystore
+    ```
+    
+    Typically: `C:\Users\<username>\AppData\Roaming\Ethereum\keystore`
+  </Tab>
+</Tabs>
+
+### Setting Up a Keystore
+
+<Steps>
+  <Step title="Create keystore directory">
+    ```bash
+    mkdir -p ~/.ethereum/keystore
+    ```
+  </Step>
+  
+  <Step title="Add keystore files">
+    Copy your existing keystore files to the directory, or create a new one using Geth:
+    
+    ```bash
+    geth account new --keystore ~/.ethereum/keystore
+    ```
+    
+    You can also export from MetaMask:
+    1. Open MetaMask
+    2. Go to Account Details
+    3. Export Private Key
+    4. Use a tool like [MyCrypto](https://mycrypto.com) to convert to keystore format
+  </Step>
+  
+  <Step title="Test the keystore">
+    ```bash
+    cctp transfer --keystore ~/.ethereum/keystore
+    ```
+    
+    The CLI should list your accounts and prompt for a password.
+  </Step>
+</Steps>
+
+<Accordion title="Keystore File Format">
+  Keystore files are JSON files with encrypted private keys. Example structure:
+  
+  ```json
+  {
+    "address": "742d35cc6634c0532925a3b844bc9e7595f0beb",
+    "crypto": {
+      "cipher": "aes-128-ctr",
+      "ciphertext": "...",
+      "cipherparams": {
+        "iv": "..."
+      },
+      "kdf": "scrypt",
+      "kdfparams": {
+        "dklen": 32,
+        "n": 262144,
+        "p": 1,
+        "r": 8,
+        "salt": "..."
+      },
+      "mac": "..."
+    },
+    "id": "...",
+    "version": 3
+  }
+  ```
+  
+  The file is typically named: `UTC--<timestamp>--<address>`
+</Accordion>
+
+## Environment Variables
+
+Set environment variables with the `CCTP_` prefix (uppercased, with underscores):
+
+### Available Variables
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|--------|
+| `CCTP_TESTNET` | boolean | Use testnet | `true`, `false` |
+| `CCTP_KEYSTORE_PATH` | string | Keystore directory path | `/path/to/keystore` |
+| `PRIVATE_KEY` | string | Private key for wallet | `0x1234...` |
+
+### Examples
+
+<CodeGroup>
+```bash Bash/Zsh
+export CCTP_TESTNET=true
+export CCTP_KEYSTORE_PATH=~/.ethereum/keystore
+export PRIVATE_KEY=0x1234567890abcdef...
+
+# Run transfer
+cctp transfer
+```
+
+```bash Inline Environment
+CCTP_TESTNET=true cctp transfer --source ethereum --dest arbitrum
+```
+
+```bash .env File
+# Create .env file
+cat > .env << EOF
+CCTP_TESTNET=true
+CCTP_KEYSTORE_PATH=~/.ethereum/keystore
+EOF
+
+# Load and use
+set -a; source .env; set +a
+cctp transfer
+```
+
+```fish Fish Shell
+set -x CCTP_TESTNET true
+set -x CCTP_KEYSTORE_PATH ~/.ethereum/keystore
+set -x PRIVATE_KEY 0x1234567890abcdef...
+
+cctp transfer
+```
+
+```powershell PowerShell
+$env:CCTP_TESTNET = "true"
+$env:CCTP_KEYSTORE_PATH = "$env:APPDATA\Ethereum\keystore"
+$env:PRIVATE_KEY = "0x1234567890abcdef..."
+
+cctp transfer
+```
+</CodeGroup>
+
+<Warning>
+  Never commit `.env` files containing `PRIVATE_KEY` to version control. Add `.env` to your `.gitignore`.
+</Warning>
+
+## Custom RPC Endpoints
+
+Override default RPC endpoints to use your own infrastructure or preferred providers.
+
+### Configuration File
+
+```yaml
+rpc_urls:
+  # Mainnet chains
+  Ethereum: https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Arbitrum: https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Base: https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Polygon PoS: https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
+  Avalanche: https://api.avax.network/ext/bc/C/rpc
+  OP Mainnet: https://opt-mainnet.g.alchemy.com/v2/YOUR_KEY
+  
+  # Testnet chains
+  Ethereum Sepolia: https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+  Arbitrum Sepolia: https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY
+```
+
+### Chain Names for RPC URLs
+
+<AccordionGroup>
+  <Accordion title="Mainnet Chain Names">
+    Use these exact names (case-sensitive):
+    
+    - `Ethereum`
+    - `Avalanche`
+    - `OP Mainnet`
+    - `Arbitrum`
+    - `Base`
+    - `Polygon PoS`
+    - `Unichain`
+    - `Linea`
+    - `Codex`
+    - `Sonic`
+    - `World Chain`
+    - `Sei`
+    - `XDC`
+    - `HyperEVM`
+    - `Ink`
+    - `Plume`
+  </Accordion>
+  
+  <Accordion title="Testnet Chain Names">
+    Use these exact names (case-sensitive):
+    
+    - `Ethereum Sepolia`
+    - `Avalanche Fuji`
+    - `OP Sepolia`
+    - `Arbitrum Sepolia`
+    - `Base Sepolia`
+    - `Polygon PoS Amoy`
+    - `Unichain Sepolia`
+    - `Linea Sepolia`
+    - `Codex Testnet`
+    - `Sonic Testnet`
+    - `World Chain Sepolia`
+    - `Sei Testnet`
+    - `XDC Apothem`
+    - `HyperEVM Testnet`
+    - `Ink Testnet`
+    - `Plume Testnet`
+    - `Arc Testnet`
+  </Accordion>
+</AccordionGroup>
+
+### Popular RPC Providers
+
+<CardGroup cols={3}>
+  <Card title="Alchemy" icon="flask">
+    - Reliable and fast
+    - Free tier available
+    - [alchemy.com](https://alchemy.com)
+  </Card>
+  <Card title="Infura" icon="cloud">
+    - Wide chain support
+    - Enterprise options
+    - [infura.io](https://infura.io)
+  </Card>
+  <Card title="QuickNode" icon="bolt">
+    - High performance
+    - Global infrastructure
+    - [quicknode.com](https://quicknode.com)
+  </Card>
+  <Card title="Ankr" icon="anchor">
+    - Public endpoints
+    - Free and premium
+    - [ankr.com](https://ankr.com)
+  </Card>
+  <Card title="LlamaRPC" icon="wifi">
+    - Community-driven
+    - No registration needed
+    - Free public RPCs
+  </Card>
+  <Card title="Self-hosted" icon="server">
+    - Full control
+    - Run Geth, Erigon, etc.
+    - Best for privacy
+  </Card>
+</CardGroup>
+
+## Default Values
+
+Set default values to speed up the transfer process:
+
+```yaml
+defaults:
+  amount: "100"  # Default USDC amount
+  recipient: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"  # Default recipient
+```
+
+**How defaults work**:
+- Pre-populate TUI fields (you can still edit them)
+- Override with command-line flags: `--amount 500`
+- Useful for repetitive transfers to the same recipient
+
+<Note>
+  Defaults are convenient but optional. The TUI always allows you to modify these values before confirming the transfer.
+</Note>
+
+## Saved Addresses
+
+Store frequently used addresses with friendly names:
+
+```yaml
+saved_addresses:
+  - name: "My Wallet"
+    address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  - name: "Treasury"
+    address: "0x1234567890123456789012345678901234567890"
+  - name: "Partner Wallet"
+    address: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+  - name: "Exchange Deposit"
+    address: "0x9876543210987654321098765432109876543210"
+```
+
+<Note>
+  While saved addresses are stored in the config, the current TUI version doesn't automatically present them yet. This feature is planned for future enhancements.
+</Note>
+
+## Configuration Examples
+
+<Accordion title="Production Setup">
+  ```yaml
+  # Production configuration
+  network: mainnet
+  
+  # Use custom high-performance RPCs
+  rpc_urls:
+    Ethereum: https://eth-mainnet.g.alchemy.com/v2/PROD_KEY
+    Arbitrum: https://arb-mainnet.g.alchemy.com/v2/PROD_KEY
+    Base: https://base-mainnet.g.alchemy.com/v2/PROD_KEY
+  
+  # No defaults - require explicit input for safety
+  ```
+</Accordion>
+
+<Accordion title="Development Setup">
+  ```yaml
+  # Development configuration
+  network: testnet
+  keystore_path: ./dev-keystore
+  
+  rpc_urls:
+    Ethereum Sepolia: https://eth-sepolia.g.alchemy.com/v2/DEV_KEY
+    Arbitrum Sepolia: https://arb-sepolia.g.alchemy.com/v2/DEV_KEY
+  
+  defaults:
+    amount: "10"
+    recipient: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  ```
+</Accordion>
+
+<Accordion title="Multi-Environment">
+  Create separate config files for each environment:
+  
+  **config.mainnet.yaml**:
+  ```yaml
+  network: mainnet
+  rpc_urls:
+    Ethereum: https://eth-mainnet.g.alchemy.com/v2/MAINNET_KEY
+  ```
+  
+  **config.testnet.yaml**:
+  ```yaml
+  network: testnet
+  rpc_urls:
+    Ethereum Sepolia: https://eth-sepolia.g.alchemy.com/v2/TESTNET_KEY
+  ```
+  
+  Use with:
+  ```bash
+  cctp transfer --config ./config.mainnet.yaml
+  cctp transfer --config ./config.testnet.yaml
+  ```
+</Accordion>
+
+## Configuration Precedence Example
+
+Understanding how different sources combine:
+
+**1. Config file** (`~/.cctp/config.yaml`):
+```yaml
+network: mainnet
+keystore_path: ~/.ethereum/keystore
+```
+
+**2. Environment variable**:
+```bash
+export CCTP_TESTNET=true
+```
+
+**3. Command**:
+```bash
+cctp transfer --keystore /custom/path
+```
+
+**Final configuration**:
+- `network`: `testnet` (env var overrides config file)
+- `keystore_path`: `/custom/path` (flag overrides env and config)
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Protect Private Keys">
+    - Never commit `PRIVATE_KEY` to version control
+    - Use environment variables or secure secret management
+    - Consider using keystore files for better security
+  </Step>
+  
+  <Step title="Secure Config Files">
+    - Don't commit config files with sensitive data
+    - Set appropriate file permissions:
+    ```bash
+    chmod 600 ~/.cctp/config.yaml
+    ```
+  </Step>
+  
+  <Step title="Secure Keystore Files">
+    - Use strong passwords for keystore encryption
+    - Store keystore files in secure locations
+    - Backup keystore files securely
+  </Step>
+  
+  <Step title="Use Testnet First">
+    - Always test with testnet before mainnet
+    - Verify recipient addresses carefully
+    - Test with small amounts first
+  </Step>
+  
+  <Step title="Monitor RPC Endpoints">
+    - Use trusted RPC providers
+    - Consider self-hosting for sensitive operations
+    - Rotate API keys regularly
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No wallet source available">
+    **Error**: `no wallet source available: set PRIVATE_KEY env variable or provide --keystore path`
+    
+    **Cause**: Neither private key nor keystore is configured.
+    
+    **Solution**: 
+    ```bash
+    # Option 1: Use private key
+    export PRIVATE_KEY=0x...
+    
+    # Option 2: Use keystore
+    cctp transfer --keystore ~/.ethereum/keystore
+    ```
+  </Accordion>
+  
+  <Accordion title="Config file not found">
+    **Not an error**: Config files are optional. The CLI works fine without one.
+    
+    **To suppress the warning**: Create an empty config file:
+    ```bash
+    mkdir -p ~/.cctp
+    touch ~/.cctp/config.yaml
+    ```
+  </Accordion>
+  
+  <Accordion title="Keystore path does not exist">
+    **Error**: `keystore path does not exist: /path/to/keystore`
+    
+    **Cause**: The specified keystore directory doesn't exist.
+    
+    **Solution**:
+    ```bash
+    # Create directory
+    mkdir -p ~/.ethereum/keystore
+    
+    # Or use correct path
+    cctp transfer --keystore /correct/path
+    ```
+  </Accordion>
+  
+  <Accordion title="Invalid chain name in RPC URLs">
+    **Error**: Custom RPC not being used.
+    
+    **Cause**: Chain name doesn't match exactly (case-sensitive).
+    
+    **Solution**: Use exact chain names:
+    ```yaml
+    rpc_urls:
+      Ethereum: https://...        # Correct
+      # ethereum: https://...     # Wrong - lowercase
+      # ETH: https://...          # Wrong - abbreviation
+    ```
+  </Accordion>
+  
+  <Accordion title="Environment variable not working">
+    **Cause**: Missing `CCTP_` prefix or not exported.
+    
+    **Solution**:
+    ```bash
+    # Wrong
+    TESTNET=true
+    
+    # Correct
+    export CCTP_TESTNET=true
+    
+    # Verify
+    echo $CCTP_TESTNET
+    ```
+  </Accordion>
+  
+  <Accordion title="RPC rate limiting">
+    **Symptoms**: Slow transfers or RPC errors.
+    
+    **Cause**: Hitting free tier rate limits.
+    
+    **Solution**:
+    - Upgrade to paid RPC plan
+    - Use multiple RPC providers
+    - Self-host a node
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Commands" icon="terminal" href="/cli/commands">
+    Learn all available CLI commands and flags
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Complete your first cross-chain transfer
+  </Card>
+  <Card title="SDK Integration" icon="code" href="/sdk/overview">
+    Integrate CCTP into your application
+  </Card>
+  <Card title="Chain Reference" icon="link" href="/concepts/supported-chains">
+    View all supported chains and capabilities
+  </Card>
+</CardGroup>

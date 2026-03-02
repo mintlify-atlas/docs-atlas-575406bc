@@ -1,0 +1,480 @@
+---
+title: "TransferOrchestrator"
+description: "Orchestrates the complete CCTP transfer workflow"
+---
+
+## Overview
+
+The `TransferOrchestrator` is the main component for executing CCTP transfers. It orchestrates the entire transfer workflow including balance checking, token approval, burning, attestation polling, and minting.
+
+## Type Definition
+
+```go
+type TransferOrchestrator struct {
+    wallet       *wallet.Wallet
+    irisClient   *IrisClient
+    sourceClient *ethclient.Client
+    destClient   *ethclient.Client
+    params       *TransferParams
+}
+```
+
+## Constructor
+
+### NewTransferOrchestrator
+
+Creates a new transfer orchestrator instance.
+
+```go
+func NewTransferOrchestrator(
+    w *wallet.Wallet,
+    params *TransferParams,
+    irisBaseURL string,
+) (*TransferOrchestrator, error)
+```
+
+#### Parameters
+
+<ParamField path="w" type="*wallet.Wallet" required>
+  The wallet instance used to sign transactions. Must have sufficient USDC balance on the source chain.
+</ParamField>
+
+<ParamField path="params" type="*TransferParams" required>
+  The transfer parameters including source chain, destination chain, amount, recipient, and transfer type.
+</ParamField>
+
+<ParamField path="irisBaseURL" type="string" required>
+  The base URL for Circle's Iris attestation service API.
+  
+  - Mainnet: `https://iris-api.circle.com`
+  - Testnet: `https://iris-api-sandbox.circle.com`
+</ParamField>
+
+#### Returns
+
+<ResponseField name="*TransferOrchestrator" type="*TransferOrchestrator">
+  A new transfer orchestrator instance ready to execute transfers.
+</ResponseField>
+
+<ResponseField name="error" type="error">
+  An error if the orchestrator creation fails (e.g., failed to connect to RPC endpoints).
+</ResponseField>
+
+## Methods
+
+### Execute
+
+Executes the complete transfer workflow from start to finish.
+
+```go
+func (t *TransferOrchestrator) Execute(
+    ctx context.Context,
+    updates chan<- TransferUpdate,
+) error
+```
+
+#### Parameters
+
+<ParamField path="ctx" type="context.Context" required>
+  The context for cancellation and timeout control. If the context is cancelled, the transfer will stop at the next safe checkpoint.
+</ParamField>
+
+<ParamField path="updates" type="chan<- TransferUpdate" required>
+  A channel for receiving progress updates throughout the transfer process. The orchestrator will send `TransferUpdate` messages as it progresses through each step.
+  
+  The channel will be closed when the transfer completes (successfully or with error).
+</ParamField>
+
+#### Returns
+
+<ResponseField name="error" type="error">
+  Returns `nil` if the transfer completes successfully, or an error describing what went wrong.
+</ResponseField>
+
+#### Transfer Steps
+
+The `Execute` method performs the following steps in order:
+
+1. **Check Balance** (`StepCheckBalance`) - Verifies sufficient USDC balance
+2. **Check Allowance** (`StepCheckAllowance`) - Checks if TokenMessenger has approval
+3. **Approve** (`StepApproving`, `StepApprovingWait`) - Approves USDC if needed
+4. **Burn** (`StepBurning`, `StepBurningWait`) - Burns USDC on source chain
+5. **Poll Attestation** (`StepPollingAttestation`) - Waits for Circle attestation
+6. **Mint** (`StepMinting`, `StepMintingWait`) - Mints USDC on destination chain
+7. **Complete** (`StepComplete`) - Transfer successful
+
+If any step fails, the orchestrator will send an error update with `StepError`.
+
+### Close
+
+Closes the RPC client connections.
+
+```go
+func (t *TransferOrchestrator) Close()
+```
+
+Call this method when you're done with the orchestrator to clean up resources.
+
+## Transfer Update Types
+
+### TransferUpdate
+
+```go
+type TransferUpdate struct {
+    Step        TransferStep
+    Message     string
+    TxHash      string
+    Error       error
+    SourceChain *Chain
+    DestChain   *Chain
+}
+```
+
+<ParamField path="Step" type="TransferStep">
+  The current step in the transfer process.
+</ParamField>
+
+<ParamField path="Message" type="string">
+  A human-readable message describing the current step.
+</ParamField>
+
+<ParamField path="TxHash" type="string">
+  The transaction hash for steps that involve on-chain transactions.
+</ParamField>
+
+<ParamField path="Error" type="error">
+  The error that occurred, if `Step` is `StepError`.
+</ParamField>
+
+<ParamField path="SourceChain" type="*Chain">
+  The source chain (optional, may be nil).
+</ParamField>
+
+<ParamField path="DestChain" type="*Chain">
+  The destination chain (optional, may be nil).
+</ParamField>
+
+### TransferStep Constants
+
+```go
+type TransferStep string
+
+const (
+    StepCheckBalance       TransferStep = "checking_balance"
+    StepCheckAllowance     TransferStep = "checking_allowance"
+    StepApproving          TransferStep = "approving"
+    StepApprovingWait      TransferStep = "approving_wait"
+    StepBurning            TransferStep = "burning"
+    StepBurningWait        TransferStep = "burning_wait"
+    StepPollingAttestation TransferStep = "polling_attestation"
+    StepMinting            TransferStep = "minting"
+    StepMintingWait        TransferStep = "minting_wait"
+    StepComplete           TransferStep = "complete"
+    StepError              TransferStep = "error"
+)
+```
+
+## Usage Examples
+
+### Basic Transfer with Progress Updates
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "math/big"
+    
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/wallet"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    ctx := context.Background()
+    
+    // Load wallet from private key
+    w, err := wallet.NewWallet("your-private-key")
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Get chains
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Base", false)
+    
+    // Create transfer parameters
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(100_000000), // 100 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeAuto,
+    }
+    
+    // Create orchestrator
+    orchestrator, err := cctp.NewTransferOrchestrator(
+        w,
+        params,
+        "https://iris-api.circle.com",
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer orchestrator.Close()
+    
+    // Create channel for updates
+    updates := make(chan cctp.TransferUpdate)
+    
+    // Start transfer in goroutine
+    go func() {
+        if err := orchestrator.Execute(ctx, updates); err != nil {
+            log.Printf("Transfer failed: %v", err)
+        }
+    }()
+    
+    // Listen for updates
+    for update := range updates {
+        if update.Error != nil {
+            fmt.Printf("ERROR: %v\n", update.Error)
+            break
+        }
+        
+        fmt.Printf("[%s] %s\n", update.Step, update.Message)
+        
+        if update.TxHash != "" {
+            fmt.Printf("  Transaction: %s\n", update.TxHash)
+        }
+        
+        if update.Step == cctp.StepComplete {
+            fmt.Println("Transfer completed successfully!")
+            break
+        }
+    }
+}
+```
+
+### Transfer with Timeout
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "math/big"
+    "time"
+    
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/wallet"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    // Create context with 30 minute timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+    defer cancel()
+    
+    w, _ := wallet.NewWallet("your-private-key")
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Arbitrum", false)
+    
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(500_000000), // 500 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeFast,
+    }
+    
+    orchestrator, _ := cctp.NewTransferOrchestrator(
+        w,
+        params,
+        "https://iris-api.circle.com",
+    )
+    defer orchestrator.Close()
+    
+    updates := make(chan cctp.TransferUpdate)
+    
+    go func() {
+        if err := orchestrator.Execute(ctx, updates); err != nil {
+            if ctx.Err() == context.DeadlineExceeded {
+                log.Println("Transfer timed out")
+            } else {
+                log.Printf("Transfer failed: %v", err)
+            }
+        }
+    }()
+    
+    for update := range updates {
+        if update.Error != nil {
+            fmt.Printf("ERROR: %v\n", update.Error)
+            break
+        }
+        fmt.Printf("[%s] %s\n", update.Step, update.Message)
+    }
+}
+```
+
+### Transfer with UI Progress Bar
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "math/big"
+    
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/wallet"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    ctx := context.Background()
+    w, _ := wallet.NewWallet("your-private-key")
+    
+    sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+    destChain, _ := cctp.GetChainByName("Base", false)
+    
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(100_000000),
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          false,
+        TransferType:     cctp.TransferTypeAuto,
+    }
+    
+    orchestrator, _ := cctp.NewTransferOrchestrator(
+        w,
+        params,
+        "https://iris-api.circle.com",
+    )
+    defer orchestrator.Close()
+    
+    updates := make(chan cctp.TransferUpdate)
+    
+    go orchestrator.Execute(ctx, updates)
+    
+    // Map steps to progress percentage
+    progressMap := map[cctp.TransferStep]int{
+        cctp.StepCheckBalance:       5,
+        cctp.StepCheckAllowance:     10,
+        cctp.StepApproving:          20,
+        cctp.StepApprovingWait:      25,
+        cctp.StepBurning:            40,
+        cctp.StepBurningWait:        50,
+        cctp.StepPollingAttestation: 70,
+        cctp.StepMinting:            85,
+        cctp.StepMintingWait:        95,
+        cctp.StepComplete:           100,
+    }
+    
+    for update := range updates {
+        if update.Error != nil {
+            fmt.Printf("❌ Error: %v\n", update.Error)
+            break
+        }
+        
+        progress := progressMap[update.Step]
+        fmt.Printf("[%3d%%] %s\n", progress, update.Message)
+        
+        if update.Step == cctp.StepComplete {
+            fmt.Println("✅ Transfer completed successfully!")
+            break
+        }
+    }
+}
+```
+
+### Testnet Transfer
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "math/big"
+    
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/wallet"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    ctx := context.Background()
+    w, _ := wallet.NewWallet("your-testnet-private-key")
+    
+    // Use testnet chains
+    sourceChain, _ := cctp.GetChainByName("Ethereum Sepolia", true)
+    destChain, _ := cctp.GetChainByName("Base Sepolia", true)
+    
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(10_000000), // 10 USDC
+        RecipientAddress: common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"),
+        Testnet:          true, // Important: set to true for testnet
+        TransferType:     cctp.TransferTypeAuto,
+    }
+    
+    // Use testnet Iris API
+    orchestrator, _ := cctp.NewTransferOrchestrator(
+        w,
+        params,
+        "https://iris-api-sandbox.circle.com", // Testnet API
+    )
+    defer orchestrator.Close()
+    
+    updates := make(chan cctp.TransferUpdate)
+    go orchestrator.Execute(ctx, updates)
+    
+    for update := range updates {
+        if update.Error != nil {
+            fmt.Printf("ERROR: %v\n", update.Error)
+            break
+        }
+        fmt.Printf("[%s] %s\n", update.Step, update.Message)
+    }
+}
+```
+
+## Error Handling
+
+The orchestrator can return errors at various stages:
+
+- **Connection Errors**: Failed to connect to RPC endpoints
+- **Balance Errors**: Insufficient USDC balance
+- **Approval Errors**: Failed to approve TokenMessenger
+- **Burn Errors**: Failed to burn USDC on source chain
+- **Attestation Errors**: Failed to get attestation from Circle
+- **Mint Errors**: Failed to mint USDC on destination chain
+
+All errors are sent through the `updates` channel with `Step: StepError` and the `Error` field populated.
+
+<Note>
+The `Execute` method is designed to be safe. If the context is cancelled or an error occurs, the orchestrator will stop at the next safe checkpoint and send an error update.
+</Note>
+
+## Resource Management
+
+Always call `Close()` when you're done with the orchestrator to properly clean up RPC client connections:
+
+```go
+orchestrator, _ := cctp.NewTransferOrchestrator(w, params, irisBaseURL)
+defer orchestrator.Close() // Ensures cleanup
+```
+
+## See Also
+
+- [TransferParams](/api/transfer-params) - Transfer parameter reference
+- [Chain](/api/chain) - Chain configuration reference
+- [IrisClient](/api/iris-client) - Attestation service client

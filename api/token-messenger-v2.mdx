@@ -1,0 +1,250 @@
+---
+title: 'TokenMessengerV2'
+description: 'Contract binding for depositing USDC for cross-chain transfer using V2 bindings'
+---
+
+## Overview
+
+The `TokenMessengerV2` binding provides Go functions to interact with the TokenMessenger smart contract, which handles burning USDC on the source chain for cross-chain transfers. This binding uses the **abigen V2** pattern with `bind.Call` and `bind.Transact` for type-safe contract interactions.
+
+## Creating a Binding
+
+### NewTokenMessengerV2
+
+Creates a new TokenMessengerV2 binding instance.
+
+```go
+import "github.com/circlefin/cctp-go/tokenmessenger"
+
+// Create the binding
+tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+```
+
+**Returns:**
+- `*TokenMessengerV2` - A new binding instance
+
+**Note:** This only creates the ABI wrapper. You must call `Instance()` to create a bound contract instance.
+
+## Creating Contract Instances
+
+### Instance
+
+Creates a wrapper for a deployed contract instance at the given address.
+
+```go
+import (
+    "github.com/circlefin/cctp-go/tokenmessenger"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/ethclient"
+)
+
+client, _ := ethclient.Dial("https://eth-mainnet.g.alchemy.com/v2/...")
+tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+
+// Create bound contract instance
+tokenMessengerAddr := common.HexToAddress("0xBd3fa81B58Ba92a82136038B25aDec7066af3155")
+instance := tokenMessengerV2.Instance(client, tokenMessengerAddr)
+```
+
+**Parameters:**
+<ParamField path="backend" type="bind.ContractBackend" required>
+  Ethereum client connection
+</ParamField>
+
+<ParamField path="addr" type="common.Address" required>
+  TokenMessenger contract address
+</ParamField>
+
+**Returns:**
+- `*bind.BoundContract` - Contract instance for use with `bind.Call` and `bind.Transact`
+
+## Main Functions
+
+### PackDepositForBurn
+
+Packs the parameters for the `depositForBurn` function, which burns USDC on the source chain to initiate a cross-chain transfer.
+
+```go
+import (
+    "math/big"
+    "github.com/circlefin/cctp-go/tokenmessenger"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+
+// Pack the depositForBurn call
+burnData := tokenMessengerV2.PackDepositForBurn(
+    amount,                    // Amount to burn (e.g., big.NewInt(1000000) for 1 USDC)
+    destinationDomain,         // Destination chain domain (e.g., 7 for Base)
+    recipientBytes32,          // Recipient address as bytes32
+    burnTokenAddr,             // USDC token address on source chain
+    [32]byte{},               // destinationCaller (empty = any caller)
+    maxFee,                    // Maximum fee willing to pay
+    minFinalityThreshold,      // 1000 = Fast Transfer, 2000 = Standard
+)
+```
+
+**Parameters:**
+<ParamField path="amount" type="*big.Int" required>
+  Amount of tokens to burn (in token's smallest unit, e.g., 1 USDC = 1000000)
+</ParamField>
+
+<ParamField path="destinationDomain" type="uint32" required>
+  CCTP domain ID of the destination chain
+</ParamField>
+
+<ParamField path="mintRecipient" type="[32]byte" required>
+  Recipient address on destination chain (as bytes32)
+</ParamField>
+
+<ParamField path="burnToken" type="common.Address" required>
+  Address of the token to burn (USDC address on source chain)
+</ParamField>
+
+<ParamField path="destinationCaller" type="[32]byte" required>
+  Address authorized to call receiveMessage on destination (empty bytes32 = any caller)
+</ParamField>
+
+<ParamField path="maxFee" type="*big.Int" required>
+  Maximum fee willing to pay for Fast Transfer (use `big.NewInt(1)` for Standard Transfer)
+</ParamField>
+
+<ParamField path="minFinalityThreshold" type="uint32" required>
+  Finality threshold: `1000` for Fast Transfer (~8-20 sec), `2000` for Standard Transfer (~13-19 min)
+</ParamField>
+
+**Returns:**
+- `[]byte` - Packed transaction data
+
+**Panics:**
+Panics if invalid parameters are provided. Use `TryPackDepositForBurn` for error handling.
+
+## Complete Workflow
+
+<Steps>
+  <Step title="Create binding and instance">
+    ```go
+    tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+    tokenMessengerAddr := common.HexToAddress("0xBd3fa81B58Ba92a82136038B25aDec7066af3155")
+    instance := tokenMessengerV2.Instance(client, tokenMessengerAddr)
+    ```
+  </Step>
+
+  <Step title="Pack the depositForBurn call">
+    ```go
+    burnData := tokenMessengerV2.PackDepositForBurn(
+        big.NewInt(1000000),       // 1 USDC
+        7,                          // Base domain
+        recipientBytes32,
+        usdcAddr,
+        [32]byte{},
+        big.NewInt(1),
+        2000,                        // Standard Transfer
+    )
+    ```
+  </Step>
+
+  <Step title="Execute transaction with bind.Transact">
+    ```go
+    import "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+
+    // Create transaction options
+    auth, _ := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
+
+    // Send transaction
+    tx, err := bind.Transact(instance, auth, burnData)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Transaction hash: %s", tx.Hash().Hex())
+    ```
+  </Step>
+
+  <Step title="Wait for confirmation">
+    ```go
+    receipt, err := bind.WaitMined(ctx, client, tx.Hash())
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("Transaction confirmed in block %d", receipt.BlockNumber)
+    ```
+  </Step>
+</Steps>
+
+## Usage Example from SDK
+
+From `transfer.go:308-319`:
+
+```go
+// Create V2 token messenger instance
+tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+tokenMessengerInstance := tokenMessengerV2.Instance(t.sourceClient, tokenMessengerAddr)
+
+// Pack the depositForBurn call
+burnData := tokenMessengerV2.PackDepositForBurn(
+    t.params.Amount,
+    t.params.DestChain.Domain,
+    recipientBytes32,
+    common.HexToAddress(t.params.SourceChain.USDC),
+    [32]byte{},           // empty destinationCaller (any address can call)
+    maxFee,               // calculated based on fee API response
+    minFinalityThreshold, // 1000 = Fast Transfer, 2000 = Standard Transfer
+)
+```
+
+<Note>
+**V2 Binding Pattern**
+
+The V2 binding pattern separates concerns:
+1. **Pack methods** - Encode function calls into transaction data
+2. **Unpack methods** - Decode return values from call results
+3. **bind.Call** - Execute read-only contract calls
+4. **bind.Transact** - Send state-changing transactions
+
+This provides better type safety and separation of concerns compared to V1 bindings.
+</Note>
+
+## Related Functions
+
+### PackDepositForBurnWithHook
+
+Similar to `PackDepositForBurn`, but includes additional hook data for advanced use cases.
+
+```go
+burnData := tokenMessengerV2.PackDepositForBurnWithHook(
+    amount,
+    destinationDomain,
+    recipientBytes32,
+    burnTokenAddr,
+    [32]byte{},
+    maxFee,
+    minFinalityThreshold,
+    hookData,  // Additional data for hook contract
+)
+```
+
+### TryPackDepositForBurn
+
+Non-panicking version that returns an error instead of panicking.
+
+```go
+burnData, err := tokenMessengerV2.TryPackDepositForBurn(
+    amount,
+    destinationDomain,
+    recipientBytes32,
+    burnTokenAddr,
+    [32]byte{},
+    maxFee,
+    minFinalityThreshold,
+)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+## See Also
+
+- [MessageTransmitterV2](/api/message-transmitter-v2) - For receiving messages on destination chain
+- [IERC20](/api/ierc20) - For token approval operations

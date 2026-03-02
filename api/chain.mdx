@@ -1,0 +1,243 @@
+---
+title: "Chain"
+description: "Blockchain configuration for CCTP V2"
+---
+
+## Overview
+
+The `Chain` struct represents a blockchain configuration for CCTP V2. It contains all the necessary information to interact with a specific blockchain, including contract addresses, RPC endpoints, and chain-specific settings.
+
+## Type Definition
+
+```go
+type Chain struct {
+    Name                 string
+    ChainID              *big.Int
+    Domain               uint32
+    RPC                  string
+    TokenMessengerV2     string
+    MessageTransmitterV2 string
+    USDC                 string
+    Explorer             string
+    IsTestnet            bool
+    InstantFinality      bool
+}
+```
+
+## Fields
+
+<ParamField path="Name" type="string" required>
+  The human-readable name of the blockchain (e.g., "Ethereum", "Base", "Arbitrum")
+</ParamField>
+
+<ParamField path="ChainID" type="*big.Int" required>
+  The chain ID as defined in EIP-155. Used for transaction signing and network identification.
+</ParamField>
+
+<ParamField path="Domain" type="uint32" required>
+  The CCTP domain identifier for this chain. Each blockchain supported by CCTP has a unique domain number.
+</ParamField>
+
+<ParamField path="RPC" type="string" required>
+  The RPC endpoint URL for connecting to the blockchain network.
+</ParamField>
+
+<ParamField path="TokenMessengerV2" type="string" required>
+  The contract address of the TokenMessengerV2 contract on this chain. This contract handles USDC burning.
+</ParamField>
+
+<ParamField path="MessageTransmitterV2" type="string" required>
+  The contract address of the MessageTransmitterV2 contract on this chain. This contract handles message receiving and USDC minting.
+</ParamField>
+
+<ParamField path="USDC" type="string" required>
+  The contract address of the USDC token on this chain.
+</ParamField>
+
+<ParamField path="Explorer" type="string" required>
+  The base URL of the blockchain explorer (e.g., "https://etherscan.io").
+</ParamField>
+
+<ParamField path="IsTestnet" type="bool" required>
+  Indicates whether this chain is a testnet (true) or mainnet (false).
+</ParamField>
+
+<ParamField path="InstantFinality" type="bool" required>
+  Indicates whether the chain has instant finality. Chains with instant finality don't need Fast Transfer distinction as they already provide quick transaction finality.
+  
+  Examples of chains with instant finality:
+  - Avalanche
+  - Polygon PoS
+  - Sonic
+  - Sei
+  - XDC
+  - HyperEVM
+</ParamField>
+
+## Usage Examples
+
+### Getting a Chain by Domain
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get Ethereum mainnet chain by domain
+    chain, err := cctp.GetChainByDomain(0, false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Chain: %s\n", chain.Name)
+    fmt.Printf("Domain: %d\n", chain.Domain)
+    fmt.Printf("RPC: %s\n", chain.RPC)
+}
+```
+
+### Getting a Chain by Name
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get Base mainnet chain by name
+    chain, err := cctp.GetChainByName("Base", false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Chain ID: %s\n", chain.ChainID.String())
+    fmt.Printf("Domain: %d\n", chain.Domain)
+    fmt.Printf("USDC Address: %s\n", chain.USDC)
+}
+```
+
+### Getting All Chains
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get all mainnet chains
+    chains := cctp.GetChains(false)
+    
+    for _, chain := range chains {
+        fmt.Printf("%s (Domain %d)\n", chain.Name, chain.Domain)
+    }
+    
+    // Get all testnet chains
+    testnets := cctp.GetChains(true)
+    
+    for _, chain := range testnets {
+        fmt.Printf("%s (Domain %d)\n", chain.Name, chain.Domain)
+    }
+}
+```
+
+### Applying Custom RPC Overrides
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get all mainnet chains
+    chains := cctp.GetMainnetChains()
+    
+    // Define custom RPC endpoints
+    overrides := map[string]string{
+        "Ethereum": "https://my-custom-ethereum-rpc.example.com",
+        "Base":     "https://my-custom-base-rpc.example.com",
+    }
+    
+    // Apply overrides
+    customChains := cctp.ApplyRPCOverrides(chains, overrides)
+    
+    for _, chain := range customChains {
+        fmt.Printf("%s RPC: %s\n", chain.Name, chain.RPC)
+    }
+}
+```
+
+### Checking Instant Finality
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    chain, _ := cctp.GetChainByName("Avalanche", false)
+    
+    if chain.InstantFinality {
+        fmt.Printf("%s has instant finality - Standard Transfer recommended\n", chain.Name)
+    } else {
+        fmt.Printf("%s does not have instant finality - Fast Transfer available\n", chain.Name)
+    }
+}
+```
+
+## Related Functions
+
+- `GetChains(testnet bool) []Chain` - Returns all configured chains
+- `GetMainnetChains() []Chain` - Returns all mainnet chain configurations
+- `GetTestnetChains() []Chain` - Returns all testnet chain configurations
+- `GetChainByDomain(domain uint32, testnet bool) (*Chain, error)` - Returns a chain by its domain ID
+- `GetChainByName(name string, testnet bool) (*Chain, error)` - Returns a chain by its name
+- `ApplyRPCOverrides(chains []Chain, overrides map[string]string) []Chain` - Applies custom RPC URL overrides
+
+## Supported Chains
+
+### Mainnet Chains
+
+| Chain Name | Domain | Chain ID | Instant Finality |
+|------------|--------|----------|------------------|
+| Ethereum | 0 | 1 | No |
+| Avalanche | 1 | 43114 | Yes |
+| OP Mainnet | 2 | 10 | No |
+| Arbitrum | 3 | 42161 | No |
+| Base | 6 | 8453 | No |
+| Polygon PoS | 7 | 137 | Yes |
+| Unichain | 10 | 1301 | No |
+| Linea | 11 | 59144 | No |
+| Codex | 12 | 5115 | No |
+| Sonic | 13 | 146 | Yes |
+| World Chain | 14 | 480 | No |
+| Sei | 16 | 1329 | Yes |
+| XDC | 18 | 50 | Yes |
+| HyperEVM | 19 | 998 | Yes |
+| Ink | 21 | 57073 | No |
+| Plume | 22 | 98865 | No |
+
+<Note>
+All V2 mainnet chains use the same contract addresses:
+- TokenMessengerV2: `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`
+- MessageTransmitterV2: `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64`
+</Note>
+
+## See Also
+
+- [TransferParams](/api/transfer-params) - Parameters for initiating a transfer
+- [TransferOrchestrator](/api/transfer-orchestrator) - Orchestrates the complete transfer workflow

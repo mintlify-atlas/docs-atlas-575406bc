@@ -1,0 +1,171 @@
+---
+title: 'SDK Architecture'
+description: 'Learn about the cctp-go SDK package structure and core components'
+---
+
+## Overview
+
+The cctp-go SDK provides a comprehensive Go implementation for Cross-Chain Transfer Protocol (CCTP) V2 integration. It offers high-level abstractions for cross-chain USDC transfers with built-in chain configurations, contract bindings, and transfer orchestration.
+
+## Package Structure
+
+The SDK is organized into several key packages:
+
+```
+cctp/
+├── chains.go                  # Chain configurations and lookup functions
+├── client.go                  # Iris API client for attestations
+├── transfer.go                # Transfer orchestration and workflow
+├── tokenmessenger/            # TokenMessengerV2 contract bindings
+│   └── tokenmessenger.go
+├── messagetransmitter/        # MessageTransmitterV2 contract bindings
+│   └── messagetransmitter.go
+└── internal/
+    ├── wallet/                # Wallet management utilities
+    └── util/                  # Helper functions
+```
+
+## Core Components
+
+### Chain Configuration
+
+<Card title="Chain Type" icon="link">
+  The `Chain` struct contains all necessary configuration for interacting with CCTP-enabled chains:
+  - Chain metadata (name, ID, domain)
+  - Contract addresses (TokenMessengerV2, MessageTransmitterV2, USDC)
+  - RPC endpoints and explorer URLs
+  - Finality characteristics
+</Card>
+
+```go chains.go:24
+type Chain struct {
+    Name                 string
+    ChainID              *big.Int
+    Domain               uint32
+    RPC                  string
+    TokenMessengerV2     string
+    MessageTransmitterV2 string
+    USDC                 string
+    Explorer             string
+    IsTestnet            bool
+    InstantFinality      bool
+}
+```
+
+### Iris Client
+
+<Card title="IrisClient" icon="cloud">
+  Handles communication with Circle's Iris attestation service for:
+  - Fetching attestations for completed burns
+  - Polling for attestation availability
+  - Querying transfer fees
+</Card>
+
+```go client.go:79
+type IrisClient struct {
+    baseURL    string
+    httpClient *http.Client
+}
+```
+
+### Transfer Orchestrator
+
+<Card title="TransferOrchestrator" icon="arrows-rotate">
+  Coordinates the complete transfer workflow:
+  - Balance and allowance checks
+  - Token approval if needed
+  - Burn transaction on source chain
+  - Attestation polling
+  - Mint transaction on destination chain
+</Card>
+
+```go transfer.go:83
+type TransferOrchestrator struct {
+    wallet       *wallet.Wallet
+    irisClient   *IrisClient
+    sourceClient *ethclient.Client
+    destClient   *ethclient.Client
+    params       *TransferParams
+}
+```
+
+### Contract Bindings
+
+<Card title="V2 Bindings" icon="file-contract">
+  Auto-generated Go bindings for CCTP V2 contracts:
+  - **TokenMessengerV2**: Handles burn operations
+  - **MessageTransmitterV2**: Handles message reception and minting
+  - **IERC20**: Standard ERC-20 interface for approvals
+</Card>
+
+## Design Principles
+
+<Steps>
+  <Step title="Type Safety">
+    Uses Go's type system to prevent common errors. Contract addresses, chain IDs, and domains are validated at compile time.
+  </Step>
+  
+  <Step title="Abigen V2">
+    Built on Ethereum's abigen v2 library for improved contract interaction patterns and better error handling.
+  </Step>
+  
+  <Step title="Configurability">
+    Allows RPC endpoint customization while providing sensible defaults for all supported chains.
+  </Step>
+  
+  <Step title="Error Handling">
+    Provides detailed error messages and context for debugging failed transfers.
+  </Step>
+</Steps>
+
+## Usage Pattern
+
+A typical integration follows this flow:
+
+```go
+// 1. Get chain configurations
+sourceChain, _ := cctp.GetChainByName("Ethereum", false)
+destChain, _ := cctp.GetChainByName("Avalanche", false)
+
+// 2. Create wallet from private key
+wallet, _ := wallet.NewWallet(privateKey)
+
+// 3. Set up transfer parameters
+params := &cctp.TransferParams{
+    SourceChain:      sourceChain,
+    DestChain:        destChain,
+    Amount:           amount,
+    RecipientAddress: recipient,
+    TransferType:     cctp.TransferTypeAuto,
+}
+
+// 4. Create orchestrator
+orchestrator, _ := cctp.NewTransferOrchestrator(
+    wallet,
+    params,
+    "https://iris-api.circle.com",
+)
+
+// 5. Execute transfer
+updates := make(chan cctp.TransferUpdate)
+go orchestrator.Execute(ctx, updates)
+
+// 6. Monitor progress
+for update := range updates {
+    fmt.Printf("Step: %s - %s\n", update.Step, update.Message)
+}
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Chain Configuration" icon="link" href="/sdk/chains">
+    Explore chain lookup functions and configuration
+  </Card>
+  <Card title="Iris Client" icon="cloud" href="/sdk/iris-client">
+    Learn about attestation polling and retrieval
+  </Card>
+  <Card title="Transfer Orchestrator" icon="arrows-rotate" href="/sdk/transfer-orchestrator">
+    Deep dive into transfer workflow execution
+  </Card>
+</CardGroup>

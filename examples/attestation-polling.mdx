@@ -1,0 +1,284 @@
+---
+title: "Attestation Polling with Progress"
+description: "Poll for attestations with progress tracking and callbacks"
+---
+
+This example demonstrates advanced attestation polling using the IrisClient with a progress callback for tracking the polling status.
+
+## What This Example Demonstrates
+
+- Creating an Iris client for attestation services
+- Polling for attestations with progress tracking
+- Using callbacks to monitor polling progress
+- Working with message and attestation data
+- Context management and error handling
+
+## Complete Code Example
+
+This example shows how to poll for attestations with progress callbacks:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "math/big"
+
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get available chains
+    chains := cctp.GetChains(false) // false = mainnet
+
+    // Create an Iris client for attestations
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+
+    // Poll for an attestation
+    ctx := context.Background()
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        0, // source domain (Ethereum)
+        "0x...", // burn transaction hash
+        nil, // optional progress callback
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("Attestation received: %s\n", msg.Attestation)
+}
+```
+
+## Breaking Down the Example
+
+<Steps>
+  <Step title="Create Iris Client">
+    Initialize the IrisClient with the appropriate API endpoint:
+    
+    ```go
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+    ```
+    
+    For testnet, use:
+    ```go
+    irisClient := cctp.NewIrisClient("https://iris-api-sandbox.circle.com")
+    ```
+  </Step>
+
+  <Step title="Define Progress Callback">
+    Create a callback function to track polling progress:
+    
+    ```go
+    progressCallback := func(attempt int, elapsed time.Duration) {
+        fmt.Printf("Attempt %d - Elapsed: %v\n", attempt, elapsed)
+    }
+    ```
+    
+    The callback receives:
+    - `attempt`: The current polling attempt number
+    - `elapsed`: Time elapsed since polling started
+  </Step>
+
+  <Step title="Poll with Context">
+    Use a context to control the polling lifecycle:
+    
+    ```go
+    ctx := context.Background()
+    
+    // Or with timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+    defer cancel()
+    
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        0,       // source domain
+        "0x...", // burn tx hash
+        progressCallback,
+    )
+    ```
+  </Step>
+
+  <Step title="Handle the Message">
+    Once the attestation is received, access the message data:
+    
+    ```go
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Attestation: %s\n", msg.Attestation)
+    fmt.Printf("Message: %s\n", msg.Message)
+    fmt.Printf("Status: %s\n", msg.Status)
+    fmt.Printf("CCTP Version: %d\n", msg.CctpVersion)
+    ```
+  </Step>
+</Steps>
+
+## Advanced Example with Progress Tracking
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+    
+    // Create a context with timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+    defer cancel()
+    
+    // Progress callback with detailed logging
+    progressCallback := func(attempt int, elapsed time.Duration) {
+        fmt.Printf("[%s] Polling attempt %d\n", 
+            elapsed.Round(time.Second), attempt)
+        
+        if attempt%10 == 0 {
+            fmt.Printf("Still waiting after %d attempts...\n", attempt)
+        }
+    }
+    
+    fmt.Println("Starting attestation polling...")
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        0,
+        "0xYOUR_BURN_TX_HASH",
+        progressCallback,
+    )
+    
+    if err != nil {
+        fmt.Printf("Error: %v\n", err)
+        return
+    }
+    
+    fmt.Println("\nAttestation received successfully!")
+    fmt.Printf("Attestation: %s\n", msg.Attestation)
+    
+    // Access decoded message fields if available
+    if msg.DecodedMessage != nil {
+        fmt.Printf("Source Domain: %s\n", msg.DecodedMessage.SourceDomain)
+        fmt.Printf("Destination Domain: %s\n", msg.DecodedMessage.DestinationDomain)
+        fmt.Printf("Nonce: %s\n", msg.DecodedMessage.Nonce)
+    }
+}
+```
+
+## Message Structure
+
+The `Message` struct returned by `PollForAttestation` contains:
+
+```go
+type Message struct {
+    Message        string            // The encoded CCTP message
+    EventNonce     string            // Event nonce
+    Attestation    string            // The attestation signature
+    DecodedMessage *DecodedMessage   // Decoded message fields
+    CctpVersion    int               // CCTP version
+    Status         AttestationStatus // "pending" or "complete"
+    DelayReason    string            // Reason for delay if any
+}
+
+type DecodedMessage struct {
+    SourceDomain              string
+    DestinationDomain         string
+    Nonce                     string
+    Sender                    string
+    Recipient                 string
+    DestinationCaller         string
+    MinFinalityThreshold      string
+    FinalityThresholdExecuted string
+    MessageBody               string
+}
+```
+
+## Polling Behavior
+
+<Note>
+  **Automatic Retry Logic**
+  
+  The `PollForAttestation` method implements:
+  - Exponential backoff starting at 2 seconds
+  - Maximum backoff of 10 seconds between attempts
+  - Automatic handling of 404 errors (up to 3 consecutive attempts)
+  - Continues until attestation is ready or context is cancelled
+</Note>
+
+## Expected Timing
+
+| Transfer Type | Chains | Typical Time |
+|---------------|--------|-------------|
+| Fast Transfer | Most EVM chains | ~8-20 seconds |
+| Standard Transfer | Non-instant finality | ~13-19 minutes |
+| Standard Transfer | Instant finality chains* | ~8 seconds |
+
+*Instant finality chains: Avalanche, Polygon PoS, Sei, Sonic, XDC, HyperEVM, Arc Testnet
+
+## Error Handling
+
+```go
+msg, err := irisClient.PollForAttestation(ctx, sourceDomain, txHash, callback)
+if err != nil {
+    switch {
+    case errors.Is(err, context.DeadlineExceeded):
+        fmt.Println("Polling timed out")
+    case errors.Is(err, context.Canceled):
+        fmt.Println("Polling was cancelled")
+    case strings.Contains(err.Error(), "rate limit"):
+        fmt.Println("Rate limit exceeded, wait before retrying")
+    default:
+        fmt.Printf("Polling error: %v\n", err)
+    }
+    return
+}
+```
+
+## Timeout Recommendations
+
+<CodeGroup>
+```go Fast Transfer
+// 2 minutes should be sufficient for fast transfers
+ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+defer cancel()
+```
+
+```go Standard Transfer (Non-Instant Finality)
+// 25 minutes to account for network finality
+ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+defer cancel()
+```
+
+```go Instant Finality Chains
+// 30 seconds is usually enough
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+```
+</CodeGroup>
+
+<Tip>
+  Use different timeout values based on the transfer type and source chain to optimize your application's responsiveness.
+</Tip>
+
+## Related Examples
+
+- [Basic Transfer](/examples/basic-transfer) - Basic SDK usage
+- [CLI Usage](/examples/cli-usage) - See how the CLI implements progress tracking
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Iris Client Reference" icon="satellite" href="/sdk/iris-client">
+    Complete API reference for IrisClient
+  </Card>
+  <Card title="Transfer Orchestration" icon="arrows-turn-right" href="/sdk/transfer-orchestrator">
+    Learn about the full transfer workflow
+  </Card>
+</CardGroup>

@@ -1,0 +1,160 @@
+---
+title: "Transfer Types"
+description: "Understand Fast Transfer, Standard Transfer, and Auto mode in CCTP"
+---
+
+## Overview
+
+CCTP Go SDK supports three transfer types, each optimized for different use cases based on speed and cost requirements.
+
+## Transfer Types
+
+<CardGroup cols={2}>
+  <Card title="Fast Transfer" icon="bolt">
+    ~8-20 seconds with a small fee (1-14 bps)
+  </Card>
+  <Card title="Standard Transfer" icon="clock">
+    ~13-19 minutes with no fee (or ~8 seconds for instant finality chains)
+  </Card>
+</CardGroup>
+
+### Fast Transfer
+
+Fast Transfer provides the fastest cross-chain USDC transfers at the cost of a small fee.
+
+**Key characteristics:**
+- **Speed:** ~8-20 seconds
+- **Fee:** 1-14 basis points (0.01%-0.14%) depending on source chain
+- **Finality threshold:** 1000
+- **Availability:** Not available when instant finality chains are the source
+
+```go
+params := &cctp.TransferParams{
+    SourceChain:      sourceChain,
+    DestChain:        destChain,
+    Amount:           amount,
+    RecipientAddress: recipient,
+    TransferType:     cctp.TransferTypeFast, // Fast Transfer
+    Testnet:          false,
+}
+```
+
+### Standard Transfer
+
+Standard Transfer is the default mode with no fee, suitable for cost-sensitive transfers.
+
+**Key characteristics:**
+- **Speed:** ~13-19 minutes for most chains, ~8 seconds for instant finality chains
+- **Fee:** No fee (0 bps)
+- **Finality threshold:** 2000
+- **Availability:** Available on all chains
+
+```go
+params := &cctp.TransferParams{
+    SourceChain:      sourceChain,
+    DestChain:        destChain,
+    Amount:           amount,
+    RecipientAddress: recipient,
+    TransferType:     cctp.TransferTypeStandard, // Standard Transfer
+    Testnet:          false,
+}
+```
+
+### Auto Mode
+
+Auto mode automatically selects the best transfer type based on the source chain capabilities.
+
+**Selection logic:**
+- **Instant finality chains** (Avalanche, Polygon PoS, Sonic, Sei, XDC, HyperEVM) → Standard Transfer
+- **Other EVM chains** → Fast Transfer
+
+```go
+params := &cctp.TransferParams{
+    SourceChain:      sourceChain,
+    DestChain:        destChain,
+    Amount:           amount,
+    RecipientAddress: recipient,
+    TransferType:     cctp.TransferTypeAuto, // Auto-select
+    Testnet:          false,
+}
+```
+
+## Comparison
+
+| Aspect | Fast Transfer | Standard Transfer |
+|--------|---------------|-------------------|
+| **Speed** | ~8-20 seconds | ~13-19 minutes (or ~8 seconds for instant finality) |
+| **Fee** | 1-14 bps | No fee |
+| **Finality Threshold** | 1000 | 2000 |
+| **Availability** | Most chains | All chains |
+| **Best For** | Time-sensitive transfers | Cost-sensitive transfers |
+
+## Fee Structure
+
+Fast Transfer fees vary by source chain:
+
+```go
+// Fee calculation from transfer.go:263-286
+var maxFee *big.Int
+if feeBps > 0 {
+    // Add 1 bps buffer for fee fluctuations
+    feeWithBuffer := big.NewInt(int64(feeBps + 1))
+    maxFee = new(big.Int).Mul(amount, feeWithBuffer)
+    maxFee = maxFee.Div(maxFee, big.NewInt(10000))
+    // Ensure minimum of 1 unit
+    if maxFee.Cmp(big.NewInt(0)) == 0 {
+        maxFee = big.NewInt(1)
+    }
+} else {
+    // Standard Transfer with no fee
+    maxFee = big.NewInt(1)
+}
+```
+
+### Fee Examples by Chain
+
+- **Ethereum, Arbitrum, Base, OP Mainnet:** 1 bps (0.01%)
+- **Linea:** 14 bps (0.14%)
+- **Polygon PoS, Avalanche, Sonic:** Standard Transfer only (no fee)
+
+<Note>
+The SDK automatically queries the Iris API for current fee rates and includes a 1 bps safety buffer.
+</Note>
+
+## Choosing the Right Type
+
+<Steps>
+  <Step title="Use Fast Transfer when">
+    - Time is critical (e.g., trading, arbitrage)
+    - The fee is acceptable for your use case
+    - Source chain is not an instant finality chain
+  </Step>
+  
+  <Step title="Use Standard Transfer when">
+    - Cost is the priority
+    - You can wait 13-19 minutes
+    - Source chain has instant finality
+  </Step>
+  
+  <Step title="Use Auto mode when">
+    - You want the SDK to choose optimally
+    - Building a general-purpose application
+  </Step>
+</Steps>
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Supported Chains" href="/concepts/supported-chains">
+    View all supported chains and their capabilities
+  </Card>
+  <Card title="Finality" href="/concepts/finality">
+    Learn about finality thresholds
+  </Card>
+  <Card title="Fees" href="/concepts/fees">
+    Detailed fee calculation
+  </Card>
+  <Card title="Transfer Orchestrator" href="/api/transfer-orchestrator">
+    API reference for executing transfers
+  </Card>
+</CardGroup>

@@ -1,0 +1,455 @@
+---
+title: 'Transfer Orchestrator'
+description: 'Execute complete cross-chain USDC transfers'
+---
+
+## Overview
+
+The `TransferOrchestrator` coordinates the entire CCTP transfer workflow, handling balance checks, approvals, burning, attestation retrieval, and minting. It provides progress updates throughout the process and manages all blockchain interactions.
+
+## TransferOrchestrator Type
+
+```go transfer.go:83
+type TransferOrchestrator struct {
+    wallet       *wallet.Wallet
+    irisClient   *IrisClient
+    sourceClient *ethclient.Client
+    destClient   *ethclient.Client
+    params       *TransferParams
+}
+```
+
+## Creating an Orchestrator
+
+```go transfer.go:92
+func NewTransferOrchestrator(
+    w *wallet.Wallet,
+    params *TransferParams,
+    irisBaseURL string,
+) (*TransferOrchestrator, error)
+```
+
+<ParamField path="w" type="*wallet.Wallet" required>
+  Wallet instance for signing transactions
+</ParamField>
+
+<ParamField path="params" type="*TransferParams" required>
+  Transfer parameters (chains, amount, recipient)
+</ParamField>
+
+<ParamField path="irisBaseURL" type="string" required>
+  Iris API base URL for attestations
+</ParamField>
+
+```go Example
+import (
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/wallet"
+)
+
+// Get chain configurations
+sourceChain, _ := cctp.GetChainByName(cctp.Ethereum, false)
+destChain, _ := cctp.GetChainByName(cctp.Avalanche, false)
+
+// Create wallet
+wallet, _ := wallet.NewWallet(privateKey)
+
+// Configure transfer
+params := &cctp.TransferParams{
+    SourceChain:      sourceChain,
+    DestChain:        destChain,
+    Amount:           big.NewInt(1000000), // 1 USDC (6 decimals)
+    RecipientAddress: common.HexToAddress("0x..."),
+    TransferType:     cctp.TransferTypeAuto,
+}
+
+// Create orchestrator
+orchestrator, err := cctp.NewTransferOrchestrator(
+    wallet,
+    params,
+    "https://iris-api.circle.com",
+)
+if err != nil {
+    log.Fatal(err)
+}
+defer orchestrator.Close()
+```
+
+## Transfer Parameters
+
+```go transfer.go:72
+type TransferParams struct {
+    SourceChain      *Chain
+    DestChain        *Chain
+    Amount           *big.Int
+    RecipientAddress common.Address
+    Testnet          bool
+    TransferType     TransferType
+    CachedBalance    *big.Int  // Optional: skip balance check
+}
+```
+
+<ParamField path="SourceChain" type="*Chain" required>
+  Source chain configuration
+</ParamField>
+
+<ParamField path="DestChain" type="*Chain" required>
+  Destination chain configuration
+</ParamField>
+
+<ParamField path="Amount" type="*big.Int" required>
+  Transfer amount in USDC's smallest unit (6 decimals)
+</ParamField>
+
+<ParamField path="RecipientAddress" type="common.Address" required>
+  Recipient address on destination chain
+</ParamField>
+
+<ParamField path="TransferType" type="TransferType">
+  Transfer mode: `TransferTypeAuto`, `TransferTypeFast`, or `TransferTypeStandard`
+</ParamField>
+
+<ParamField path="CachedBalance" type="*big.Int">
+  Pre-fetched balance to skip redundant RPC call
+</ParamField>
+
+## Transfer Types
+
+```go transfer.go:54
+type TransferType string
+
+const (
+    TransferTypeFast     TransferType = "fast"     // ~8-20 seconds, with fee
+    TransferTypeStandard TransferType = "standard" // ~13-19 minutes, no fee
+    TransferTypeAuto     TransferType = "auto"     // Auto-select based on chain
+)
+```
+
+<Note>
+`TransferTypeAuto` automatically selects Standard Transfer for instant finality chains (Avalanche, Polygon, etc.) and Fast Transfer for others.
+</Note>
+
+## Executing a Transfer
+
+```go transfer.go:121
+func (t *TransferOrchestrator) Execute(
+    ctx context.Context,
+    updates chan<- TransferUpdate,
+) error
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for cancellation and timeout
+</ParamField>
+
+<ParamField path="updates" type="chan<- TransferUpdate" required>
+  Channel for receiving progress updates
+</ParamField>
+
+```go Example
+ctx := context.Background()
+updates := make(chan cctp.TransferUpdate)
+
+// Execute transfer in goroutine
+go func() {
+    err := orchestrator.Execute(ctx, updates)
+    if err != nil {
+        log.Printf("Transfer failed: %v", err)
+    }
+}()
+
+// Monitor progress
+for update := range updates {
+    switch update.Step {
+    case cctp.StepCheckBalance:
+        fmt.Printf("[Balance] %s\n", update.Message)
+    case cctp.StepApproving:
+        fmt.Printf("[Approve] %s (tx: %s)\n", update.Message, update.TxHash)
+    case cctp.StepBurning:
+        fmt.Printf("[Burn] %s (tx: %s)\n", update.Message, update.TxHash)
+    case cctp.StepPollingAttestation:
+        fmt.Printf("[Attestation] %s\n", update.Message)
+    case cctp.StepMinting:
+        fmt.Printf("[Mint] %s (tx: %s)\n", update.Message, update.TxHash)
+    case cctp.StepComplete:
+        fmt.Printf("[Success] %s\n", update.Message)
+    case cctp.StepError:
+        fmt.Printf("[Error] %v\n", update.Error)
+    }
+}
+```
+
+## Transfer Steps
+
+The orchestrator progresses through these steps:
+
+```go transfer.go:36
+const (
+    StepCheckBalance       TransferStep = "checking_balance"
+    StepCheckAllowance     TransferStep = "checking_allowance"
+    StepApproving          TransferStep = "approving"
+    StepApprovingWait      TransferStep = "approving_wait"
+    StepBurning            TransferStep = "burning"
+    StepBurningWait        TransferStep = "burning_wait"
+    StepPollingAttestation TransferStep = "polling_attestation"
+    StepMinting            TransferStep = "minting"
+    StepMintingWait        TransferStep = "minting_wait"
+    StepComplete           TransferStep = "complete"
+    StepError              TransferStep = "error"
+)
+```
+
+<Steps>
+  <Step title="Balance Check">
+    Verifies wallet has sufficient USDC balance on source chain.
+    
+    ```go transfer.go:133
+    balance, err := util.GetUSDCBalance(ctx, sourceClient, usdcAddress, wallet.Address)
+    ```
+  </Step>
+  
+  <Step title="Allowance Check">
+    Checks if TokenMessengerV2 has approval to spend USDC.
+    
+    ```go transfer.go:163
+    allowance, err := bind.Call(usdcInstance, &bind.CallOpts{Context: ctx},
+        ierc20.PackAllowance(wallet.Address, tokenMessengerAddr),
+        ierc20.UnpackAllowance)
+    ```
+  </Step>
+  
+  <Step title="Approval (if needed)">
+    If allowance is insufficient, approve TokenMessengerV2 to spend USDC.
+    
+    ```go transfer.go:182
+    approveTx, err := bind.Transact(usdcInstance, auth,
+        ierc20.PackApprove(tokenMessengerAddr, amount))
+    ```
+  </Step>
+  
+  <Step title="Burn USDC">
+    Call `depositForBurn` on TokenMessengerV2 to burn USDC on source chain.
+    
+    ```go transfer.go:311
+    burnData := tokenMessengerV2.PackDepositForBurn(
+        amount,
+        destDomain,
+        recipientBytes32,
+        burnToken,
+        destinationCaller,
+        maxFee,
+        minFinalityThreshold,
+    )
+    ```
+  </Step>
+  
+  <Step title="Poll for Attestation">
+    Wait for Circle's attestation service to sign the message.
+    
+    ```go transfer.go:393
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        sourceDomain,
+        burnTxHash,
+        progressCallback,
+    )
+    ```
+  </Step>
+  
+  <Step title="Mint USDC">
+    Call `receiveMessage` on MessageTransmitterV2 to mint USDC on destination chain.
+    
+    ```go transfer.go:434
+    mintData := messageTransmitterV2.PackReceiveMessage(
+        messageBytes,
+        attestationBytes,
+    )
+    ```
+  </Step>
+</Steps>
+
+## Transfer Updates
+
+```go transfer.go:62
+type TransferUpdate struct {
+    Step        TransferStep
+    Message     string
+    TxHash      string
+    Error       error
+    SourceChain *Chain
+    DestChain   *Chain
+}
+```
+
+<ParamField path="Step" type="TransferStep">
+  Current step in the transfer process
+</ParamField>
+
+<ParamField path="Message" type="string">
+  Human-readable status message
+</ParamField>
+
+<ParamField path="TxHash" type="string">
+  Transaction hash (when applicable)
+</ParamField>
+
+<ParamField path="Error" type="error">
+  Error details if step failed
+</ParamField>
+
+## Fee Calculation
+
+The orchestrator automatically queries and applies appropriate fees:
+
+```go transfer.go:250
+// Fetch fee information from Iris API
+feesResp, err := irisClient.GetTransferFees(ctx, sourceDomain, destDomain)
+
+// Find fee for selected finality threshold
+var feeBps uint32 = 0
+for _, feeInfo := range feesResp.Data {
+    if feeInfo.FinalityThreshold == minFinalityThreshold {
+        feeBps = feeInfo.MinimumFee
+        break
+    }
+}
+
+// Calculate maxFee with 1 bps safety buffer
+maxFee = (amount * (feeBps + 1)) / 10000
+```
+
+<Tip>
+The SDK adds a 1 basis point buffer to protect against fee fluctuations between query and execution.
+</Tip>
+
+## Error Handling
+
+The orchestrator performs validation before submitting transactions:
+
+<CodeGroup>
+  ```go Balance Validation
+  if balance.Cmp(amount) < 0 {
+      err := fmt.Errorf("insufficient USDC balance: have %s, need %s",
+          util.FormatUSDCBalance(balance),
+          util.FormatUSDCBalance(amount))
+      updates <- TransferUpdate{Step: StepError, Error: err}
+      return err
+  }
+  ```
+
+  ```go Pre-flight Check
+  // Test burn transaction before sending
+  callMsg := ethereum.CallMsg{
+      From:  wallet.Address,
+      To:    &tokenMessengerAddr,
+      Data:  burnData,
+      Value: big.NewInt(0),
+  }
+  
+  _, callErr := sourceClient.CallContract(ctx, callMsg, nil)
+  if callErr != nil {
+      return fmt.Errorf("burn call would fail: %w", callErr)
+  }
+  ```
+</CodeGroup>
+
+## Resource Management
+
+Always close the orchestrator to release RPC connections:
+
+```go transfer.go:485
+func (t *TransferOrchestrator) Close()
+```
+
+```go
+orchestrator, err := cctp.NewTransferOrchestrator(wallet, params, irisURL)
+if err != nil {
+    log.Fatal(err)
+}
+defer orchestrator.Close()
+
+// Execute transfer
+err = orchestrator.Execute(ctx, updates)
+```
+
+## Complete Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "math/big"
+    "os"
+    
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/wallet"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+func main() {
+    // Setup
+    privateKey := os.Getenv("PRIVATE_KEY")
+    wallet, _ := wallet.NewWallet(privateKey)
+    
+    sourceChain, _ := cctp.GetChainByName(cctp.Ethereum, false)
+    destChain, _ := cctp.GetChainByName(cctp.Base, false)
+    
+    // Configure transfer
+    params := &cctp.TransferParams{
+        SourceChain:      sourceChain,
+        DestChain:        destChain,
+        Amount:           big.NewInt(10_000000), // 10 USDC
+        RecipientAddress: common.HexToAddress("0x..."),
+        TransferType:     cctp.TransferTypeFast,
+    }
+    
+    // Create orchestrator
+    orchestrator, err := cctp.NewTransferOrchestrator(
+        wallet,
+        params,
+        "https://iris-api.circle.com",
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer orchestrator.Close()
+    
+    // Execute transfer
+    ctx := context.Background()
+    updates := make(chan cctp.TransferUpdate)
+    
+    go func() {
+        err := orchestrator.Execute(ctx, updates)
+        if err != nil {
+            log.Printf("Transfer failed: %v", err)
+        }
+    }()
+    
+    // Monitor progress
+    for update := range updates {
+        if update.Step == cctp.StepComplete {
+            fmt.Println("Transfer complete!")
+            fmt.Printf("Mint tx: %s\n", update.TxHash)
+            break
+        }
+        if update.Step == cctp.StepError {
+            log.Fatal(update.Error)
+        }
+        fmt.Printf("%s: %s\n", update.Step, update.Message)
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Iris Client" icon="cloud" href="/sdk/iris-client">
+    Learn about attestation polling
+  </Card>
+  <Card title="Contract Bindings" icon="file-contract" href="/sdk/contract-bindings">
+    Understand V2 contract interfaces
+  </Card>
+</CardGroup>

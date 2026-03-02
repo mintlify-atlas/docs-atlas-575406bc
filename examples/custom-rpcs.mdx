@@ -1,0 +1,227 @@
+---
+title: "Custom RPC Endpoints"
+description: "Override default RPC endpoints with your own infrastructure"
+---
+
+The CCTP Go SDK provides default RPC endpoints for all supported chains, but you can easily override them with your own custom endpoints from providers like Alchemy, Infura, or your own infrastructure.
+
+## What This Example Demonstrates
+
+- How to get chains with default RPC endpoints
+- Using chain name constants for type safety
+- Applying custom RPC overrides
+- IDE autocomplete support for chain names
+
+## Complete Code Example
+
+This example shows how to use the `ApplyRPCOverrides` function:
+
+```go
+package main
+
+import (
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get chains with default RPC endpoints
+    chains := cctp.GetChains(false) // false = mainnet
+
+    // Define custom RPC endpoints using the chain name constants
+    // This provides IDE autocomplete and prevents typos
+    customRPCs := map[string]string{
+        cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    }
+
+    // Apply RPC overrides
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+
+    // Now use chains with your custom RPC endpoints
+    for _, chain := range chains {
+        if chain.Name == cctp.Ethereum {
+            fmt.Printf("Ethereum RPC: %s\n", chain.RPC)
+        }
+    }
+}
+```
+
+## Breaking Down the Example
+
+<Steps>
+  <Step title="Get Default Chains">
+    Start by getting the chains with default RPC endpoints:
+    
+    ```go
+    chains := cctp.GetChains(false) // false = mainnet
+    ```
+  </Step>
+
+  <Step title="Define Custom RPC Map">
+    Create a map with chain names as keys and custom RPC URLs as values:
+    
+    ```go
+    customRPCs := map[string]string{
+        cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+        cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    }
+    ```
+    
+    <Tip>
+      Use the chain name constants (e.g., `cctp.Ethereum`) for IDE autocomplete support and to avoid typos.
+    </Tip>
+  </Step>
+
+  <Step title="Apply Overrides">
+    Apply the custom RPC endpoints to your chains:
+    
+    ```go
+    chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+    ```
+    
+    <Note>
+      The function returns a new slice and doesn't mutate the original chains.
+    </Note>
+  </Step>
+
+  <Step title="Use Custom Chains">
+    Now you can use the chains with your custom RPC endpoints:
+    
+    ```go
+    for _, chain := range chains {
+        if chain.Name == cctp.Ethereum {
+            fmt.Printf("Ethereum RPC: %s\n", chain.RPC)
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Available Chain Constants
+
+### Mainnet Chains
+
+```go
+cctp.Ethereum
+cctp.Avalanche
+cctp.OPMainnet
+cctp.Arbitrum
+cctp.Base
+cctp.PolygonPoS
+cctp.Unichain
+cctp.Linea
+cctp.Codex
+cctp.Sonic
+cctp.WorldChain
+cctp.Sei
+cctp.XDC
+cctp.HyperEVM
+cctp.Ink
+cctp.Plume
+```
+
+### Testnet Chains
+
+```go
+cctp.EthereumSepolia
+cctp.AvalancheFuji
+cctp.OPSepolia
+cctp.ArbitrumSepolia
+cctp.BaseSepolia
+cctp.PolygonPoSAmoy
+cctp.LineaSepolia
+cctp.ArcTestnet
+cctp.UnichainSepolia
+cctp.CodexTestnet
+cctp.SonicTestnet
+cctp.WorldChainSepolia
+cctp.SeiTestnet
+cctp.XDCApothem
+cctp.HyperEVMTestnet
+cctp.InkTestnet
+cctp.PlumeTestnet
+```
+
+## Important Notes
+
+<Note>
+  **Chain Name Matching**
+  
+  - Use chain name constants (e.g., `cctp.Ethereum`) for IDE autocomplete support
+  - You can still use string literals if needed, but they must match exactly (case-sensitive)
+  - Empty string overrides are ignored (original RPC is preserved)
+  - Non-matching chain names are ignored
+</Note>
+
+<Note>
+  **Immutability**
+  
+  The original chains slice is not mutated. `ApplyRPCOverrides` returns a new slice with the overrides applied.
+</Note>
+
+## Common RPC Providers
+
+<CodeGroup>
+```go Alchemy
+customRPCs := map[string]string{
+    cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    cctp.PolygonPoS: "https://polygon-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+}
+```
+
+```go Infura
+customRPCs := map[string]string{
+    cctp.Ethereum: "https://mainnet.infura.io/v3/YOUR_API_KEY",
+    cctp.Arbitrum: "https://arbitrum-mainnet.infura.io/v3/YOUR_API_KEY",
+    cctp.Base:     "https://base-mainnet.infura.io/v3/YOUR_API_KEY",
+    cctp.PolygonPoS: "https://polygon-mainnet.infura.io/v3/YOUR_API_KEY",
+}
+```
+
+```go QuickNode
+customRPCs := map[string]string{
+    cctp.Ethereum: "https://your-endpoint.ethereum.quiknode.pro/YOUR_API_KEY/",
+    cctp.Arbitrum: "https://your-endpoint.arbitrum.quiknode.pro/YOUR_API_KEY/",
+}
+```
+
+```go Self-Hosted
+customRPCs := map[string]string{
+    cctp.Ethereum: "https://your-ethereum-node.example.com",
+    cctp.Arbitrum: "https://your-arbitrum-node.example.com",
+}
+```
+</CodeGroup>
+
+## Partial Overrides
+
+You don't need to override all chains. Only override the ones you need:
+
+```go
+// Only override Ethereum, all other chains use default RPCs
+customRPCs := map[string]string{
+    cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+}
+
+chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+```
+
+## Related Examples
+
+- [Basic Transfer](/examples/basic-transfer) - Basic SDK usage
+- [CLI Usage](/examples/cli-usage) - Custom RPCs in CLI configuration
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chain Configuration" icon="link" href="/sdk/chains">
+    Learn more about chain configurations
+  </Card>
+  <Card title="Contract Interactions" icon="file-contract" href="/sdk/contract-bindings">
+    Interact with CCTP contracts
+  </Card>
+</CardGroup>

@@ -1,0 +1,163 @@
+---
+title: Installation
+description: Install the CCTP Go SDK and CLI tool for cross-chain USDC transfers
+---
+
+## SDK installation
+
+To use the CCTP SDK in your Go applications, install it using `go get`:
+
+```bash
+go get github.com/circlefin/cctp-go
+```
+
+Then import it in your Go code:
+
+```go
+import "github.com/circlefin/cctp-go"
+```
+
+<Tip>
+  The SDK requires Go 1.25.2 or later. Check your Go version with `go version`.
+</Tip>
+
+## CLI installation
+
+The CLI tool can be installed directly using `go install`:
+
+```bash
+go install github.com/circlefin/cctp-go/cmd/cctp@latest
+```
+
+<Note>
+  Make sure the path where Go builds executables is in your `PATH` variable. This is typically `$GOPATH/bin` or `$HOME/go/bin`.
+</Note>
+
+### Verify installation
+
+Verify the CLI is installed correctly:
+
+```bash
+cctp --help
+```
+
+You should see the CLI help output with available commands.
+
+## Building from source
+
+If you prefer to build from source or want to contribute:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/circlefin/cctp-go
+    cd cctp-go
+    ```
+  </Step>
+  
+  <Step title="Install dependencies">
+    ```bash
+    go mod download
+    ```
+  </Step>
+  
+  <Step title="Build the CLI binary">
+    You can use [Task](https://taskfile.dev/) or build directly with Go:
+    
+    <CodeGroup>
+      ```bash Task
+      task build
+      ```
+      
+      ```bash Go
+      go build -o bin/cctp ./cmd/cli
+      ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Run the CLI">
+    ```bash
+    ./bin/cctp transfer
+    ```
+    
+    Or run directly without building:
+    
+    ```bash
+    go run ./cmd/cli transfer
+    ```
+  </Step>
+</Steps>
+
+## Available build tasks
+
+If you have [Task](https://taskfile.dev/) installed, you can use these convenient commands:
+
+<CodeGroup>
+  ```bash Build
+  task build
+  ```
+  
+  ```bash Test
+  task test
+  ```
+  
+  ```bash Test (verbose)
+  task test-verbose
+  ```
+  
+  ```bash Coverage
+  task test-coverage
+  ```
+  
+  ```bash Coverage (HTML)
+  task test-coverage-html
+  ```
+  
+  ```bash Clean
+  task clean
+  ```
+</CodeGroup>
+
+## CLI wallet setup
+
+To use the CLI, you need your wallet's private key stored in the [Geth keystore](https://geth.ethereum.org/docs/fundamentals/account-management#importing-a-keyfile) format.
+
+<Warning>
+  Never share your private key or keystore file. Keep them secure and never commit them to version control.
+</Warning>
+
+### Keystore location
+
+By default, the CLI looks for keystore files in the standard Geth keystore directory. You can specify a custom directory with the `--keystore` flag:
+
+```bash
+cctp --keystore ~/.ethereum/keystore transfer
+```
+
+## Dependencies
+
+The SDK relies on several key dependencies:
+
+- **ethereum/go-ethereum v1.17.0** - Ethereum client and contract bindings
+- **spf13/cobra v1.10.1** - CLI framework
+- **charmbracelet/bubbletea v1.3.10** - Terminal UI framework
+
+<Info>
+  All dependencies are automatically installed when you run `go get` or `go mod download`.
+</Info>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Execute your first USDC transfer
+  </Card>
+  
+  <Card title="CLI usage" icon="terminal" href="/examples/cli-usage">
+    Learn how to use the CLI tool
+  </Card>
+  
+  <Card title="SDK guide" icon="book" href="/sdk/overview">
+    Integrate CCTP into your Go application
+  </Card>
+</CardGroup>

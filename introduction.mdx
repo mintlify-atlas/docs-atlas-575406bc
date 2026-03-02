@@ -1,0 +1,158 @@
+---
+title: Introduction
+description: A Go SDK and CLI tool for executing Circle's CCTP V2 cross-chain USDC transfers across all supported EVM chains
+---
+
+## Overview
+
+The CCTP Go SDK and CLI is a comprehensive toolkit for building cross-chain USDC transfers using Circle's Cross-Chain Transfer Protocol (CCTP) V2. Whether you're building a Go application or need a quick command-line tool, this package provides everything you need to move USDC seamlessly across 18 mainnet and 10 testnet EVM chains.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Importable Go SDK" icon="cube">
+    Use CCTP functionality directly in your Go applications with a clean, type-safe API
+  </Card>
+  <Card title="Fast Transfer support" icon="bolt">
+    Complete transfers in ~8-20 seconds with Fast Transfer (small fee applies)
+  </Card>
+  <Card title="Standard Transfer support" icon="clock">
+    Free transfers in ~13-19 minutes, or ~8 seconds on instant finality chains
+  </Card>
+  <Card title="18+ EVM chains" icon="link">
+    Support for all CCTP V2 EVM chains including Ethereum, Arbitrum, Base, Polygon, and more
+  </Card>
+  <Card title="Multiple wallet support" icon="wallet">
+    Works with Geth keystore files and private keys
+  </Card>
+  <Card title="Real-time tracking" icon="chart-line">
+    Monitor transfer progress with detailed fee information and status updates
+  </Card>
+  <Card title="Beautiful terminal UI" icon="terminal">
+    Interactive CLI with a polished terminal user interface
+  </Card>
+  <Card title="V2 contract bindings" icon="code">
+    Type-safe Go Ethereum V2 contract bindings for all CCTP contracts
+  </Card>
+</CardGroup>
+
+## Supported chains
+
+The SDK supports **18 mainnet chains** and **10 testnet chains**:
+
+<AccordionGroup>
+  <Accordion title="Mainnet chains (18)">
+    - **Ethereum** (Domain 0)
+    - **Avalanche** (Domain 1) - Instant finality
+    - **OP Mainnet** (Domain 2)
+    - **Arbitrum** (Domain 3)
+    - **Base** (Domain 6)
+    - **Polygon PoS** (Domain 7) - Instant finality
+    - **Unichain** (Domain 10)
+    - **Linea** (Domain 11)
+    - **Codex** (Domain 12)
+    - **Sonic** (Domain 13) - Instant finality
+    - **World Chain** (Domain 14)
+    - **Sei** (Domain 16) - Instant finality
+    - **XDC** (Domain 18) - Instant finality
+    - **HyperEVM** (Domain 19) - Instant finality
+    - **Ink** (Domain 21)
+    - **Plume** (Domain 22)
+  </Accordion>
+  
+  <Accordion title="Testnet chains (10)">
+    - Ethereum Sepolia
+    - Avalanche Fuji
+    - OP Sepolia
+    - Arbitrum Sepolia
+    - Base Sepolia
+    - Polygon PoS Amoy
+    - Linea Sepolia
+    - Arc Testnet
+    - Unichain Sepolia
+    - Codex Testnet
+    - Sonic Testnet
+    - World Chain Sepolia
+    - Sei Testnet
+    - XDC Apothem
+    - HyperEVM Testnet
+    - Ink Testnet
+    - Plume Testnet
+  </Accordion>
+</AccordionGroup>
+
+## Transfer types
+
+<CardGroup cols={2}>
+  <Card title="Fast Transfer" icon="rocket">
+    **~8-20 seconds** with a small fee (1-14 bps depending on source chain). Best for time-sensitive transfers. Available on most chains when used as source.
+    
+    <Note>Not available when instant finality chains are the source</Note>
+  </Card>
+  
+  <Card title="Standard Transfer" icon="hourglass">
+    **~13-19 minutes** with no fee, or **~8 seconds** on instant finality chains. Best for cost-sensitive transfers. Available on all chains.
+    
+    <Tip>Instant finality chains: Avalanche, Polygon PoS, Sei, Sonic, XDC, HyperEVM, Arc Testnet</Tip>
+  </Card>
+</CardGroup>
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Complete your first USDC transfer in minutes
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/installation">
+    Install the SDK and CLI tool
+  </Card>
+  
+  <Card title="SDK guide" icon="book" href="/sdk/overview">
+    Learn how to use the SDK in your Go applications
+  </Card>
+  
+  <Card title="CLI guide" icon="terminal" href="/examples/cli-usage">
+    Master the command-line interface
+  </Card>
+</CardGroup>
+
+## Package structure
+
+The SDK is organized into clear, focused packages:
+
+```
+cctp-go/
+├── client.go          # Iris attestation client
+├── transfer.go        # Transfer orchestration
+├── chains.go          # Chain configurations
+├── contracts.go       # Contract interactions
+├── cmd/
+│   └── cli/           # CLI application
+│       └── main.go
+└── internal/          # CLI-specific code
+    ├── config/
+    ├── ui/
+    └── wallet/
+```
+
+## Prerequisites
+
+- Go 1.25.2 or later
+- For CLI usage: A wallet's private key stored in [Geth keystore](https://geth.ethereum.org/docs/fundamentals/account-management#importing-a-keyfile)
+
+## Next steps
+
+<Steps>
+  <Step title="Install the SDK">
+    Follow the [installation guide](/installation) to add the SDK to your project or install the CLI tool.
+  </Step>
+  
+  <Step title="Complete the quickstart">
+    Run through the [quickstart guide](/quickstart) to execute your first transfer.
+  </Step>
+  
+  <Step title="Explore the SDK">
+    Dive into the [SDK documentation](/sdk/overview) to learn about all available features.
+  </Step>
+</Steps>

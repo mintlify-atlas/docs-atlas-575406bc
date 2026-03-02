@@ -1,0 +1,147 @@
+---
+title: GetChainByDomain
+description: Returns a chain configuration by its CCTP domain ID
+---
+
+## Function Signature
+
+```go
+func GetChainByDomain(domain uint32, testnet bool) (*Chain, error)
+```
+
+Returns a specific chain configuration by looking up its CCTP domain identifier. This is useful when you have a domain ID from a CCTP message or transaction and need the corresponding chain details.
+
+## Parameters
+
+<ParamField path="domain" type="uint32" required>
+  The CCTP domain identifier to search for. Each chain has a unique domain ID (e.g., Ethereum = 0, Avalanche = 1, OP Mainnet = 2)
+</ParamField>
+
+<ParamField path="testnet" type="bool" required>
+  Set to `true` to search testnet chains, or `false` to search mainnet chains
+</ParamField>
+
+## Returns
+
+<ResponseField name="chain" type="*Chain">
+  Pointer to a Chain struct containing the blockchain configuration, or `nil` if not found. The Chain includes:
+  
+  - `Name` (string) - Chain name
+  - `ChainID` (*big.Int) - EVM chain ID
+  - `Domain` (uint32) - CCTP domain identifier
+  - `RPC` (string) - Default RPC endpoint URL
+  - `TokenMessengerV2` (string) - TokenMessenger V2 contract address
+  - `MessageTransmitterV2` (string) - MessageTransmitter V2 contract address
+  - `USDC` (string) - USDC token contract address
+  - `Explorer` (string) - Block explorer URL
+  - `IsTestnet` (bool) - Whether this is a testnet chain
+  - `InstantFinality` (bool) - Whether the chain has instant finality
+</ResponseField>
+
+<ResponseField name="error" type="error">
+  Error if the chain with the specified domain is not found. Returns `nil` if successful.
+</ResponseField>
+
+## Usage Example
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get Ethereum mainnet (domain 0)
+    chain, err := cctp.GetChainByDomain(0, false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Chain: %s\n", chain.Name)
+    fmt.Printf("Chain ID: %s\n", chain.ChainID.String())
+    fmt.Printf("RPC: %s\n", chain.RPC)
+    fmt.Printf("USDC: %s\n", chain.USDC)
+    
+    // Get Arbitrum mainnet (domain 3)
+    arbitrum, err := cctp.GetChainByDomain(3, false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("\nChain: %s\n", arbitrum.Name)
+    fmt.Printf("Domain: %d\n", arbitrum.Domain)
+    
+    // Get Base Sepolia testnet (domain 6)
+    baseSepolia, err := cctp.GetChainByDomain(6, true)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("\nTestnet Chain: %s\n", baseSepolia.Name)
+    fmt.Printf("Explorer: %s\n", baseSepolia.Explorer)
+    
+    // Handle chain not found
+    _, err = cctp.GetChainByDomain(999, false)
+    if err != nil {
+        fmt.Printf("\nError: %s\n", err.Error())
+        // Output: Error: chain with domain 999 not found
+    }
+}
+```
+
+## Common Domain IDs
+
+### Mainnet
+
+- **0** - Ethereum
+- **1** - Avalanche
+- **2** - OP Mainnet
+- **3** - Arbitrum
+- **6** - Base
+- **7** - Polygon PoS
+- **10** - Unichain
+- **11** - Linea
+- **12** - Codex
+- **13** - Sonic
+- **14** - World Chain
+- **16** - Sei
+- **18** - XDC
+- **19** - HyperEVM
+- **21** - Ink
+- **22** - Plume
+
+### Testnet
+
+- **0** - Ethereum Sepolia
+- **1** - Avalanche Fuji
+- **2** - OP Sepolia
+- **3** - Arbitrum Sepolia
+- **6** - Base Sepolia
+- **7** - Polygon PoS Amoy
+- **10** - Unichain Sepolia
+- **11** - Linea Sepolia
+- **12** - Codex Testnet
+- **13** - Sonic Testnet
+- **14** - World Chain Sepolia
+- **16** - Sei Testnet
+- **18** - XDC Apothem
+- **19** - HyperEVM Testnet
+- **21** - Ink Testnet
+- **22** - Plume Testnet
+- **26** - Arc Testnet
+
+<Note>
+  This function searches through all chains returned by `GetChains()` and returns the first match. Domain IDs are unique within mainnet and testnet environments.
+</Note>
+
+## Error Handling
+
+The function returns an error with the message `"chain with domain %d not found"` if no chain matches the specified domain ID.
+
+## Related Functions
+
+- [GetChains](/api/get-chains) - Get all configured chains
+- [GetChainByName](/api/get-chain-by-name) - Find a specific chain by its name
+- [ApplyRPCOverrides](/api/apply-rpc-overrides) - Override default RPC endpoints

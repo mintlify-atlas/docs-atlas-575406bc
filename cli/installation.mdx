@@ -1,0 +1,281 @@
+---
+title: CLI Installation
+description: Install the CCTP CLI tool using Go's package manager
+---
+
+The CCTP CLI is distributed as a Go package and can be installed using the `go install` command.
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install Go">
+    You need Go 1.21 or later installed on your system.
+    
+    Check your Go version:
+    ```bash
+    go version
+    ```
+    
+    If you don't have Go installed, download it from [go.dev/dl](https://go.dev/dl/).
+  </Step>
+  
+  <Step title="Verify GOPATH">
+    Ensure your Go binary path is in your system's PATH:
+    
+    ```bash
+    echo $GOPATH
+    ```
+    
+    The Go binaries are typically installed to `$GOPATH/bin` or `$HOME/go/bin`.
+    
+    <Accordion title="Add Go binaries to PATH">
+      If `go install` succeeds but you can't run `cctp`, add Go's bin directory to your PATH:
+      
+      **Bash/Zsh** (`~/.bashrc` or `~/.zshrc`):
+      ```bash
+      export PATH="$PATH:$(go env GOPATH)/bin"
+      ```
+      
+      **Fish** (`~/.config/fish/config.fish`):
+      ```fish
+      set -gx PATH $PATH (go env GOPATH)/bin
+      ```
+      
+      Then reload your shell configuration:
+      ```bash
+      source ~/.bashrc  # or ~/.zshrc, or restart your terminal
+      ```
+    </Accordion>
+  </Step>
+</Steps>
+
+## Installation
+
+Install the latest version of the CCTP CLI:
+
+<CodeGroup>
+```bash Latest Version
+go install github.com/circlefin/cctp-go/cmd/cctp@latest
+```
+
+```bash Specific Version
+go install github.com/circlefin/cctp-go/cmd/cctp@v0.2.0
+```
+
+```bash Development Version
+# Install from main branch (not recommended for production)
+go install github.com/circlefin/cctp-go/cmd/cctp@main
+```
+</CodeGroup>
+
+<Note>
+  The `@latest` tag installs the most recent stable release. For production use, consider pinning to a specific version.
+</Note>
+
+## Verify Installation
+
+Check that the CLI is installed correctly:
+
+```bash
+cctp version
+```
+
+You should see output like:
+
+```
+INFO CCTP CLI version version=0.2.0
+```
+
+## Platform-Specific Notes
+
+<Accordion title="macOS">
+  ### Default Keystore Location
+  ```
+  ~/Library/Ethereum/keystore
+  ```
+  
+  ### Apple Silicon (M1/M2/M3)
+  The CLI is compatible with Apple Silicon Macs. Go will automatically build the appropriate binary.
+  
+  ### Gatekeeper
+  If macOS blocks the CLI as an "unidentified developer", you may need to:
+  1. Go to System Preferences > Security & Privacy
+  2. Click "Allow Anyway" for the cctp binary
+  
+  Or run:
+  ```bash
+  xattr -d com.apple.quarantine $(which cctp)
+  ```
+</Accordion>
+
+<Accordion title="Linux">
+  ### Default Keystore Location
+  ```
+  ~/.ethereum/keystore
+  ```
+  
+  ### Permissions
+  Ensure the installed binary has execute permissions:
+  ```bash
+  chmod +x $(which cctp)
+  ```
+  
+  ### Distribution-Specific Package Managers
+  While `go install` is the recommended method, some Linux distributions may provide packages in the future. Check your package manager:
+  ```bash
+  # Not yet available, but check:
+  apt search cctp-cli      # Debian/Ubuntu
+  yum search cctp-cli      # RHEL/CentOS
+  pacman -Ss cctp-cli      # Arch
+  ```
+</Accordion>
+
+<Accordion title="Windows">
+  ### Default Keystore Location
+  ```
+  %APPDATA%\Ethereum\keystore
+  ```
+  Typically: `C:\Users\<username>\AppData\Roaming\Ethereum\keystore`
+  
+  ### PowerShell vs Command Prompt
+  The CLI works in both PowerShell and Command Prompt. PowerShell is recommended for better formatting.
+  
+  ### Windows Terminal
+  For the best experience, use [Windows Terminal](https://aka.ms/terminal) which supports:
+  - True color rendering
+  - Unicode characters
+  - Better mouse support
+  
+  ### PATH Configuration
+  If `cctp` is not found after installation, add Go's bin directory to PATH:
+  
+  1. Open System Properties > Environment Variables
+  2. Edit the `Path` variable
+  3. Add: `%USERPROFILE%\go\bin`
+  4. Restart your terminal
+</Accordion>
+
+## Update the CLI
+
+To update to the latest version, simply run the install command again:
+
+```bash
+go install github.com/circlefin/cctp-go/cmd/cctp@latest
+```
+
+<Warning>
+  Always check the [release notes](https://github.com/circlefin/cctp-go/releases) before updating, especially for major version changes that may include breaking changes.
+</Warning>
+
+## Uninstall
+
+To remove the CCTP CLI:
+
+```bash
+rm $(which cctp)
+```
+
+Or manually delete the binary from your Go bin directory:
+
+```bash
+rm $GOPATH/bin/cctp
+# or
+rm ~/go/bin/cctp
+```
+
+## Build from Source
+
+For development or testing, you can build directly from the source repository:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/circlefin/cctp-go.git
+    cd cctp-go
+    ```
+  </Step>
+  
+  <Step title="Build the CLI">
+    ```bash
+    go build -o cctp ./cmd/cctp
+    ```
+    
+    This creates a `cctp` binary in the current directory.
+  </Step>
+  
+  <Step title="Install to GOPATH (optional)">
+    ```bash
+    go install ./cmd/cctp
+    ```
+    
+    Or manually move the binary:
+    ```bash
+    mv cctp $GOPATH/bin/
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found: cctp">
+    **Cause**: The Go bin directory is not in your PATH.
+    
+    **Solution**: Add Go's bin directory to your PATH (see [Verify GOPATH](#prerequisites) above) or use the full path:
+    ```bash
+    $(go env GOPATH)/bin/cctp version
+    ```
+  </Accordion>
+  
+  <Accordion title="go: command not found">
+    **Cause**: Go is not installed or not in PATH.
+    
+    **Solution**: Install Go from [go.dev/dl](https://go.dev/dl/) and ensure it's in your PATH.
+  </Accordion>
+  
+  <Accordion title="Permission denied">
+    **Cause**: Insufficient permissions to write to GOPATH/bin.
+    
+    **Solution**: 
+    - Run with appropriate permissions (avoid sudo with go install)
+    - Or install to a local directory:
+    ```bash
+    GOBIN=~/bin go install github.com/circlefin/cctp-go/cmd/cctp@latest
+    export PATH="$PATH:~/bin"
+    ```
+  </Accordion>
+  
+  <Accordion title="Network/proxy issues">
+    **Cause**: Firewall or proxy blocking Go module downloads.
+    
+    **Solution**: Configure Go proxy:
+    ```bash
+    export GOPROXY=https://proxy.golang.org,direct
+    go install github.com/circlefin/cctp-go/cmd/cctp@latest
+    ```
+    
+    Or use a different proxy:
+    ```bash
+    export GOPROXY=https://goproxy.io,direct
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have the CLI installed, learn how to use it:
+
+<CardGroup cols={2}>
+  <Card title="Commands" icon="terminal" href="/cli/commands">
+    Explore all available CLI commands and flags
+  </Card>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Set up config files and wallet authentication
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Complete your first cross-chain transfer
+  </Card>
+  <Card title="Shell Completion" icon="code" href="/cli/commands#shell-completion">
+    Enable auto-completion for faster usage
+  </Card>
+</CardGroup>

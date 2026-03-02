@@ -1,0 +1,326 @@
+---
+title: "Iris Client"
+description: "Interact with Circle's Iris attestation service"
+---
+
+## Overview
+
+The `IrisClient` provides methods for fetching attestations from Circle's Iris API, which is required to complete cross-chain USDC transfers. After burning USDC on the source chain, you must obtain an attestation from Iris before minting on the destination chain.
+
+## IrisClient Type
+
+```go client.go:79
+type IrisClient struct {
+    baseURL    string
+    httpClient *http.Client
+}
+```
+
+<ParamField path="baseURL" type="string" required>
+  Base URL for the Iris API (mainnet or testnet)
+</ParamField>
+
+<ParamField path="httpClient" type="*http.Client">
+  HTTP client with 30-second timeout
+</ParamField>
+
+## Creating a Client
+
+```go client.go:86
+func NewIrisClient(baseURL string) *IrisClient
+```
+
+<Tabs>
+  <Tab title="Mainnet">
+    ```go
+    client := cctp.NewIrisClient("https://iris-api.circle.com")
+    ```
+  </Tab>
+  <Tab title="Testnet">
+    ```go
+    client := cctp.NewIrisClient("https://iris-api-sandbox.circle.com")
+    ```
+  </Tab>
+</Tabs>
+
+## Core Methods
+
+### GetMessages
+
+Fetch messages and attestations for a specific transaction:
+
+```go client.go:95
+func (c *IrisClient) GetMessages(
+    ctx context.Context,
+    sourceDomain uint32,
+    txHash string,
+) (*MessagesResponse, error)
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for cancellation and timeout
+</ParamField>
+
+<ParamField path="sourceDomain" type="uint32" required>
+  CCTP domain of the source chain
+</ParamField>
+
+<ParamField path="txHash" type="string" required>
+  Transaction hash of the burn transaction
+</ParamField>
+
+<CodeGroup>
+  ```go Example
+  resp, err := client.GetMessages(
+      ctx,
+      0, // Ethereum domain
+      "0x1234...",
+  )
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  if len(resp.Messages) > 0 {
+      msg := resp.Messages[0]
+      fmt.Printf("Status: %s\n", msg.Status)
+      fmt.Printf("Attestation: %s\n", msg.Attestation)
+  }
+  ```
+
+  ```go Response Structure
+  type MessagesResponse struct {
+      Messages []Message `json:"messages"`
+  }
+  
+  type Message struct {
+      Message        string            `json:"message"`
+      EventNonce     string            `json:"eventNonce"`
+      Attestation    string            `json:"attestation"`
+      DecodedMessage *DecodedMessage   `json:"decodedMessage"`
+      Status         AttestationStatus `json:"status"`
+      DelayReason    string            `json:"delayReason"`
+  }
+  ```
+</CodeGroup>
+
+### PollForAttestation
+
+Poll for an attestation until it's ready or context is cancelled:
+
+```go client.go:162
+func (c *IrisClient) PollForAttestation(
+    ctx context.Context,
+    sourceDomain uint32,
+    txHash string,
+    progressCallback func(attempt int, elapsed time.Duration),
+) (*Message, error)
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for cancellation and timeout
+</ParamField>
+
+<ParamField path="sourceDomain" type="uint32" required>
+  CCTP domain of the source chain
+</ParamField>
+
+<ParamField path="txHash" type="string" required>
+  Transaction hash of the burn transaction
+</ParamField>
+
+<ParamField path="progressCallback" type="func(int, time.Duration)">
+  Optional callback invoked on each polling attempt
+</ParamField>
+
+<CodeGroup>
+  ```go Basic Usage
+  msg, err := client.PollForAttestation(
+      ctx,
+      0, // Ethereum
+      burnTxHash,
+      nil, // No progress callback
+  )
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  fmt.Printf("Attestation received: %s\n", msg.Attestation)
+  ```
+
+  ```go With Progress Tracking
+  msg, err := client.PollForAttestation(
+      ctx,
+      sourceDomain,
+      burnTxHash,
+      func(attempt int, elapsed time.Duration) {
+          fmt.Printf("Attempt %d, elapsed: %s\n", attempt, elapsed)
+      },
+  )
+  ```
+
+  ```go With Timeout
+  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+  defer cancel()
+  
+  msg, err := client.PollForAttestation(ctx, sourceDomain, txHash, nil)
+  if err == context.DeadlineExceeded {
+      log.Println("Attestation not ready after 5 minutes")
+  }
+  ```
+</CodeGroup>
+
+<Note>
+The polling function implements exponential backoff (2s → 4s → 8s → 10s max) and handles transient 404 errors during indexing.
+</Note>
+
+### GetTransferFees
+
+Query fee information for transfers between domains:
+
+```go client.go:234
+func (c *IrisClient) GetTransferFees(
+    ctx context.Context,
+    sourceDomain uint32,
+    destDomain uint32,
+) (*FeesResponse, error)
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for cancellation and timeout
+</ParamField>
+
+<ParamField path="sourceDomain" type="uint32" required>
+  Source chain CCTP domain
+</ParamField>
+
+<ParamField path="destDomain" type="uint32" required>
+  Destination chain CCTP domain
+</ParamField>
+
+<CodeGroup>
+  ```go Example
+  feesResp, err := client.GetTransferFees(
+      ctx,
+      0, // Ethereum
+      1, // Avalanche
+  )
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  for _, feeInfo := range feesResp.Data {
+      fmt.Printf("Threshold %d: %d bps\n",
+          feeInfo.FinalityThreshold,
+          feeInfo.MinimumFee,
+      )
+  }
+  ```
+
+  ```go Response Structure
+  type FeesResponse struct {
+      Data []FeeInfo `json:"data"`
+  }
+  
+  type FeeInfo struct {
+      FinalityThreshold uint32 `json:"finalityThreshold"` // 1000 or 2000
+      MinimumFee        uint32 `json:"minimumFee"`        // in basis points
+  }
+  ```
+</CodeGroup>
+
+<Tip>
+Fees are returned in basis points (bps). For example, 14 bps = 0.14% fee.
+</Tip>
+
+## Attestation Status
+
+Attestation status indicates whether an attestation is ready:
+
+```go client.go:31
+type AttestationStatus string
+
+const (
+    AttestationStatusPending  AttestationStatus = "pending"
+    AttestationStatusComplete AttestationStatus = "complete"
+)
+```
+
+## Error Handling
+
+<Warning>
+The Iris API enforces rate limits. A 429 status code indicates rate limiting.
+</Warning>
+
+```go
+msg, err := client.GetMessages(ctx, domain, txHash)
+if err != nil {
+    if strings.Contains(err.Error(), "429") {
+        log.Println("Rate limited - wait 5 minutes before retrying")
+    }
+    return err
+}
+```
+
+## Estimated Attestation Times
+
+Helper function to estimate attestation time based on chain characteristics:
+
+```go client.go:266
+func EstimatedAttestationTime(instantFinality bool) time.Duration
+```
+
+```go
+// For instant finality chains (Avalanche, Polygon, etc.)
+if sourceChain.InstantFinality {
+    estimate := cctp.EstimatedAttestationTime(true)
+    fmt.Printf("Expected attestation in ~%s\n", estimate) // ~10 seconds
+}
+
+// For standard EVM chains
+estimate := cctp.EstimatedAttestationTime(false)
+fmt.Printf("Expected attestation in ~%s\n", estimate) // ~15 seconds for Fast Transfer
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Context Timeouts">
+    Always set reasonable timeouts to prevent indefinite waiting:
+    ```go
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+    defer cancel()
+    ```
+  </Step>
+  
+  <Step title="Handle 404 Errors">
+    The API may return 404 immediately after a burn transaction while indexing. The `PollForAttestation` function handles this automatically.
+  </Step>
+  
+  <Step title="Check Attestation Status">
+    Verify that `msg.Status == AttestationStatusComplete` and `msg.Attestation != ""` before proceeding to mint.
+  </Step>
+  
+  <Step title="Implement Retry Logic">
+    Handle transient network errors with exponential backoff:
+    ```go
+    for attempt := 1; attempt <= 3; attempt++ {
+        msg, err := client.GetMessages(ctx, domain, txHash)
+        if err == nil {
+            break
+        }
+        time.Sleep(time.Duration(attempt) * time.Second)
+    }
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transfer Orchestrator" icon="arrows-rotate" href="/sdk/transfer-orchestrator">
+    See how IrisClient is used in the complete transfer flow
+  </Card>
+  <Card title="Contract Bindings" icon="file-contract" href="/sdk/contract-bindings">
+    Use attestations with MessageTransmitterV2
+  </Card>
+</CardGroup>

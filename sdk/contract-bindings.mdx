@@ -1,0 +1,509 @@
+---
+title: 'Contract Bindings'
+description: 'Use CCTP V2 smart contract bindings with abigen v2'
+---
+
+## Overview
+
+The SDK provides Go bindings for CCTP V2 smart contracts, generated using Ethereum's `abigen` tool with v2 library support. These bindings enable type-safe interaction with TokenMessengerV2, MessageTransmitterV2, and IERC20 contracts.
+
+## Abigen V2 Pattern
+
+The bindings follow the abigen v2 pattern, separating ABI packaging from contract interaction:
+
+<Steps>
+  <Step title="Create Contract Instance">
+    Instantiate the contract type (e.g., `NewTokenMessengerV2()`)
+  </Step>
+  
+  <Step title="Create Bound Contract">
+    Bind to a deployed contract address using `Instance()`
+  </Step>
+  
+  <Step title="Pack Call Data">
+    Use `Pack*` methods to encode function calls
+  </Step>
+  
+  <Step title="Execute Transaction">
+    Use `bind.Call()` or `bind.Transact()` from `github.com/ethereum/go-ethereum/accounts/abi/bind/v2`
+  </Step>
+</Steps>
+
+## TokenMessengerV2
+
+Handles USDC burn operations on the source chain.
+
+### Creating an Instance
+
+```go tokenmessenger/tokenmessenger.go:4085
+type TokenMessengerV2 struct {
+    abi abi.ABI
+}
+
+func NewTokenMessengerV2() *TokenMessengerV2
+```
+
+```go
+import (
+    "github.com/circlefin/cctp-go/tokenmessenger"
+    "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+    "github.com/ethereum/go-ethereum/common"
+)
+
+// Create contract instance
+tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+
+// Bind to deployed address
+tokenMessengerAddr := common.HexToAddress(sourceChain.TokenMessengerV2)
+tokenMessengerInstance := tokenMessengerV2.Instance(
+    sourceClient,
+    tokenMessengerAddr,
+)
+```
+
+### DepositForBurn
+
+Burn USDC on source chain to initiate a transfer:
+
+```go tokenmessenger/tokenmessenger.go:4279
+func (tokenMessengerV2 *TokenMessengerV2) PackDepositForBurn(
+    amount *big.Int,
+    destinationDomain uint32,
+    mintRecipient [32]byte,
+    burnToken common.Address,
+    destinationCaller [32]byte,
+    maxFee *big.Int,
+    minFinalityThreshold uint32,
+) []byte
+```
+
+<ParamField path="amount" type="*big.Int" required>
+  Amount of USDC to burn (6 decimals)
+</ParamField>
+
+<ParamField path="destinationDomain" type="uint32" required>
+  CCTP domain of destination chain
+</ParamField>
+
+<ParamField path="mintRecipient" type="[32]byte" required>
+  Recipient address on destination chain (bytes32 format)
+</ParamField>
+
+<ParamField path="burnToken" type="common.Address" required>
+  USDC token address on source chain
+</ParamField>
+
+<ParamField path="destinationCaller" type="[32]byte" required>
+  Authorized caller on destination (use `[32]byte{}` for any caller)
+</ParamField>
+
+<ParamField path="maxFee" type="*big.Int" required>
+  Maximum fee willing to pay (in USDC)
+</ParamField>
+
+<ParamField path="minFinalityThreshold" type="uint32" required>
+  Finality threshold: 1000 (Fast), 2000 (Standard)
+</ParamField>
+
+<CodeGroup>
+  ```go Example Usage
+  import "github.com/circlefin/cctp-go/internal/util"
+  
+  // Convert address to bytes32
+  recipientBytes32 := util.AddressToBytes32(recipientAddress)
+  
+  // Pack depositForBurn call
+  burnData := tokenMessengerV2.PackDepositForBurn(
+      big.NewInt(1000000),           // 1 USDC
+      destChain.Domain,               // e.g., 1 for Avalanche
+      recipientBytes32,
+      common.HexToAddress(sourceChain.USDC),
+      [32]byte{},                     // Any caller
+      big.NewInt(100),                // Max 0.0001 USDC fee
+      1000,                           // Fast Transfer
+  )
+  
+  // Create transaction options
+  auth, _ := wallet.CreateTransactOpts(ctx, sourceClient, sourceChain.ChainID)
+  
+  // Execute transaction
+  tx, err := bind.Transact(tokenMessengerInstance, auth, burnData)
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  fmt.Printf("Burn tx: %s\n", tx.Hash().Hex())
+  ```
+
+  ```go Wait for Confirmation
+  // Wait for transaction to be mined
+  receipt, err := bind.WaitMined(ctx, sourceClient, tx.Hash())
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  if receipt.Status == 1 {
+      fmt.Println("Burn successful!")
+  } else {
+      fmt.Println("Burn failed")
+  }
+  ```
+</CodeGroup>
+
+## MessageTransmitterV2
+
+Handles message reception and USDC minting on the destination chain.
+
+### Creating an Instance
+
+```go messagetransmitter/messagetransmitter.go:3584
+type MessageTransmitterV2 struct {
+    abi abi.ABI
+}
+
+func NewMessageTransmitterV2() *MessageTransmitterV2
+```
+
+```go
+import "github.com/circlefin/cctp-go/messagetransmitter"
+
+// Create contract instance
+messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+
+// Bind to deployed address
+messageTransmitterAddr := common.HexToAddress(destChain.MessageTransmitterV2)
+messageTransmitterInstance := messageTransmitterV2.Instance(
+    destClient,
+    messageTransmitterAddr,
+)
+```
+
+### ReceiveMessage
+
+Receive a cross-chain message and mint USDC:
+
+```go messagetransmitter/messagetransmitter.go:4150
+func (messageTransmitterV2 *MessageTransmitterV2) PackReceiveMessage(
+    message []byte,
+    attestation []byte,
+) []byte
+```
+
+<ParamField path="message" type="[]byte" required>
+  Encoded CCTP message from burn transaction
+</ParamField>
+
+<ParamField path="attestation" type="[]byte" required>
+  Attestation signature from Circle's Iris service
+</ParamField>
+
+<CodeGroup>
+  ```go Example Usage
+  // Get message and attestation from Iris
+  msg, err := irisClient.PollForAttestation(ctx, sourceDomain, burnTxHash, nil)
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  // Decode hex strings
+  messageBytes := common.FromHex(msg.Message)
+  attestationBytes := common.FromHex(msg.Attestation)
+  
+  // Pack receiveMessage call
+  mintData := messageTransmitterV2.PackReceiveMessage(
+      messageBytes,
+      attestationBytes,
+  )
+  
+  // Create transaction options
+  authDest, _ := wallet.CreateTransactOpts(ctx, destClient, destChain.ChainID)
+  
+  // Execute mint transaction
+  mintTx, err := bind.Transact(messageTransmitterInstance, authDest, mintData)
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  fmt.Printf("Mint tx: %s\n", mintTx.Hash().Hex())
+  ```
+
+  ```go Wait and Verify
+  // Wait for mint confirmation
+  receipt, err := bind.WaitMined(ctx, destClient, mintTx.Hash())
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  if receipt.Status == 1 {
+      fmt.Printf("USDC minted to %s\n", recipientAddress.Hex())
+  } else {
+      log.Println("Mint failed")
+  }
+  ```
+</CodeGroup>
+
+## IERC20
+
+Standard ERC-20 interface for token approvals and balance checks.
+
+### Creating an Instance
+
+```go tokenmessenger/tokenmessenger.go:2109
+type IERC20 struct {
+    abi abi.ABI
+}
+
+func NewIERC20() *IERC20
+```
+
+```go
+import "github.com/circlefin/cctp-go/tokenmessenger"
+
+// Create IERC20 instance
+ierc20 := tokenmessenger.NewIERC20()
+
+// Bind to USDC token address
+usdcAddress := common.HexToAddress(sourceChain.USDC)
+usdcInstance := ierc20.Instance(sourceClient, usdcAddress)
+```
+
+### Allowance
+
+Check token allowance for a spender:
+
+```go tokenmessenger/tokenmessenger.go:2133
+func (iERC20 *IERC20) PackAllowance(
+    owner common.Address,
+    spender common.Address,
+) []byte
+```
+
+```go
+// Pack allowance call
+allowanceData := ierc20.PackAllowance(
+    walletAddress,
+    tokenMessengerAddr,
+)
+
+// Execute call
+allowance, err := bind.Call(
+    usdcInstance,
+    &bind.CallOpts{Context: ctx},
+    allowanceData,
+    ierc20.UnpackAllowance,
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Current allowance: %s\n", allowance.String())
+```
+
+### Approve
+
+Approve token spending:
+
+```go tokenmessenger/tokenmessenger.go:2168
+func (iERC20 *IERC20) PackApprove(
+    spender common.Address,
+    amount *big.Int,
+) []byte
+```
+
+```go
+// Pack approve call
+approveData := ierc20.PackApprove(
+    tokenMessengerAddr,
+    transferAmount,
+)
+
+// Create transaction options
+auth, _ := wallet.CreateTransactOpts(ctx, sourceClient, sourceChain.ChainID)
+
+// Execute approve transaction
+approveTx, err := bind.Transact(usdcInstance, auth, approveData)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Wait for confirmation
+_, err = bind.WaitMined(ctx, sourceClient, approveTx.Hash())
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println("Approval confirmed")
+```
+
+## Helper Functions
+
+The SDK includes utility functions for common operations:
+
+### AddressToBytes32
+
+Convert Ethereum address to bytes32 format for cross-chain messaging:
+
+```go
+import "github.com/circlefin/cctp-go/internal/util"
+
+// Convert address to bytes32 (left-padded with zeros)
+recipientBytes32 := util.AddressToBytes32(recipientAddress)
+
+// Use in depositForBurn
+burnData := tokenMessengerV2.PackDepositForBurn(
+    amount,
+    destDomain,
+    recipientBytes32,  // bytes32 recipient
+    burnToken,
+    [32]byte{},        // empty destinationCaller
+    maxFee,
+    threshold,
+)
+```
+
+### GetUSDCBalance
+
+Fetch USDC balance for an address:
+
+```go
+import "github.com/circlefin/cctp-go/internal/util"
+
+balance, err := util.GetUSDCBalance(
+    ctx,
+    client,
+    common.HexToAddress(chain.USDC),
+    walletAddress,
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Balance: %s USDC\n", util.FormatUSDCBalance(balance))
+```
+
+## Complete Transfer Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "math/big"
+    
+    "github.com/circlefin/cctp-go"
+    "github.com/circlefin/cctp-go/internal/util"
+    "github.com/circlefin/cctp-go/internal/wallet"
+    "github.com/circlefin/cctp-go/messagetransmitter"
+    "github.com/circlefin/cctp-go/tokenmessenger"
+    "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/ethclient"
+)
+
+func main() {
+    ctx := context.Background()
+    
+    // Setup chains and wallet
+    sourceChain, _ := cctp.GetChainByName(cctp.Ethereum, false)
+    destChain, _ := cctp.GetChainByName(cctp.Base, false)
+    wallet, _ := wallet.NewWallet(privateKey)
+    
+    // Connect to chains
+    sourceClient, _ := ethclient.Dial(sourceChain.RPC)
+    destClient, _ := ethclient.Dial(destChain.RPC)
+    defer sourceClient.Close()
+    defer destClient.Close()
+    
+    // Setup USDC contract
+    ierc20 := tokenmessenger.NewIERC20()
+    usdcInstance := ierc20.Instance(
+        sourceClient,
+        common.HexToAddress(sourceChain.USDC),
+    )
+    
+    // Setup TokenMessengerV2
+    tokenMessengerV2 := tokenmessenger.NewTokenMessengerV2()
+    tokenMessengerAddr := common.HexToAddress(sourceChain.TokenMessengerV2)
+    tokenMessengerInstance := tokenMessengerV2.Instance(
+        sourceClient,
+        tokenMessengerAddr,
+    )
+    
+    // Check and approve if needed
+    amount := big.NewInt(1000000) // 1 USDC
+    allowance, _ := bind.Call(
+        usdcInstance,
+        &bind.CallOpts{Context: ctx},
+        ierc20.PackAllowance(wallet.Address, tokenMessengerAddr),
+        ierc20.UnpackAllowance,
+    )
+    
+    if allowance.Cmp(amount) < 0 {
+        auth, _ := wallet.CreateTransactOpts(ctx, sourceClient, sourceChain.ChainID)
+        approveTx, _ := bind.Transact(
+            usdcInstance,
+            auth,
+            ierc20.PackApprove(tokenMessengerAddr, amount),
+        )
+        bind.WaitMined(ctx, sourceClient, approveTx.Hash())
+        fmt.Println("Approved USDC")
+    }
+    
+    // Burn USDC
+    recipientBytes32 := util.AddressToBytes32(wallet.Address)
+    burnData := tokenMessengerV2.PackDepositForBurn(
+        amount,
+        destChain.Domain,
+        recipientBytes32,
+        common.HexToAddress(sourceChain.USDC),
+        [32]byte{},
+        big.NewInt(100),
+        1000, // Fast Transfer
+    )
+    
+    auth, _ := wallet.CreateTransactOpts(ctx, sourceClient, sourceChain.ChainID)
+    burnTx, _ := bind.Transact(tokenMessengerInstance, auth, burnData)
+    bind.WaitMined(ctx, sourceClient, burnTx.Hash())
+    fmt.Printf("Burned USDC: %s\n", burnTx.Hash().Hex())
+    
+    // Get attestation
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+    msg, _ := irisClient.PollForAttestation(
+        ctx,
+        sourceChain.Domain,
+        burnTx.Hash().Hex(),
+        nil,
+    )
+    fmt.Println("Attestation received")
+    
+    // Mint on destination
+    messageTransmitterV2 := messagetransmitter.NewMessageTransmitterV2()
+    messageTransmitterInstance := messageTransmitterV2.Instance(
+        destClient,
+        common.HexToAddress(destChain.MessageTransmitterV2),
+    )
+    
+    mintData := messageTransmitterV2.PackReceiveMessage(
+        common.FromHex(msg.Message),
+        common.FromHex(msg.Attestation),
+    )
+    
+    authDest, _ := wallet.CreateTransactOpts(ctx, destClient, destChain.ChainID)
+    mintTx, _ := bind.Transact(messageTransmitterInstance, authDest, mintData)
+    bind.WaitMined(ctx, destClient, mintTx.Hash())
+    fmt.Printf("Minted USDC: %s\n", mintTx.Hash().Hex())
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transfer Orchestrator" icon="arrows-rotate" href="/sdk/transfer-orchestrator">
+    See how bindings are used in the complete workflow
+  </Card>
+  <Card title="Iris Client" icon="cloud" href="/sdk/iris-client">
+    Learn about attestation retrieval
+  </Card>
+</CardGroup>

@@ -1,0 +1,239 @@
+---
+title: 'Chain Configuration'
+description: 'Access CCTP V2 chain configurations and metadata'
+---
+
+## Overview
+
+The SDK provides pre-configured chain metadata for all CCTP V2 supported networks, including mainnet and testnet environments. Chain configurations include contract addresses, RPC endpoints, and network characteristics.
+
+## Chain Type
+
+The `Chain` struct contains all information needed to interact with a CCTP-enabled chain:
+
+```go chains.go:24
+type Chain struct {
+    Name                 string      // Human-readable name
+    ChainID              *big.Int    // EVM chain ID
+    Domain               uint32      // CCTP domain identifier
+    RPC                  string      // Default RPC endpoint
+    TokenMessengerV2     string      // TokenMessengerV2 contract address
+    MessageTransmitterV2 string      // MessageTransmitterV2 contract address
+    USDC                 string      // USDC token address
+    Explorer             string      // Block explorer base URL
+    IsTestnet            bool        // Testnet flag
+    InstantFinality      bool        // True for chains with instant finality
+}
+```
+
+<Note>
+The `InstantFinality` field indicates chains where Fast Transfer and Standard Transfer have similar performance characteristics (Avalanche, Polygon, Sonic, Sei, XDC, HyperEVM).
+</Note>
+
+## Chain Lookup Functions
+
+### GetChains
+
+Retrieve all configured chains for mainnet or testnet:
+
+```go chains.go:79
+func GetChains(testnet bool) []Chain
+```
+
+<Tabs>
+  <Tab title="Mainnet">
+    ```go
+    chains := cctp.GetChains(false)
+    fmt.Printf("Found %d mainnet chains\n", len(chains))
+    
+    for _, chain := range chains {
+        fmt.Printf("- %s (domain %d)\n", chain.Name, chain.Domain)
+    }
+    ```
+  </Tab>
+  <Tab title="Testnet">
+    ```go
+    testnetChains := cctp.GetChains(true)
+    fmt.Printf("Found %d testnet chains\n", len(testnetChains))
+    
+    for _, chain := range testnetChains {
+        fmt.Printf("- %s (domain %d)\n", chain.Name, chain.Domain)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### GetChainByDomain
+
+Lookup a chain by its CCTP domain ID:
+
+```go chains.go:507
+func GetChainByDomain(domain uint32, testnet bool) (*Chain, error)
+```
+
+<CodeGroup>
+  ```go Example
+  // Find Ethereum mainnet (domain 0)
+  ethChain, err := cctp.GetChainByDomain(0, false)
+  if err != nil {
+      log.Fatal(err)
+  }
+  fmt.Printf("Chain: %s\n", ethChain.Name)
+  fmt.Printf("TokenMessenger: %s\n", ethChain.TokenMessengerV2)
+  ```
+
+  ```go Error Handling
+  chain, err := cctp.GetChainByDomain(999, false)
+  if err != nil {
+      // Returns: "chain with domain 999 not found"
+      log.Printf("Error: %v", err)
+  }
+  ```
+</CodeGroup>
+
+### GetChainByName
+
+Lookup a chain by its name:
+
+```go chains.go:518
+func GetChainByName(name string, testnet bool) (*Chain, error)
+```
+
+<CodeGroup>
+  ```go Example
+  sourceChain, err := cctp.GetChainByName("Ethereum", false)
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  destChain, err := cctp.GetChainByName("Avalanche", false)
+  if err != nil {
+      log.Fatal(err)
+  }
+  
+  fmt.Printf("Transfer from %s to %s\n", sourceChain.Name, destChain.Name)
+  ```
+
+  ```go Using Constants
+  // Use chain name constants for type safety
+  ethChain, _ := cctp.GetChainByName(cctp.Ethereum, false)
+  baseChain, _ := cctp.GetChainByName(cctp.Base, false)
+  
+  // Testnet equivalent
+  sepoliaChain, _ := cctp.GetChainByName(cctp.EthereumSepolia, true)
+  ```
+</CodeGroup>
+
+## Chain Name Constants
+
+The SDK provides constants for all supported chains to avoid string typos:
+
+<Tabs>
+  <Tab title="Mainnet">
+    ```go chains.go:38
+    const (
+        Ethereum   = "Ethereum"
+        Avalanche  = "Avalanche"
+        OPMainnet  = "OP Mainnet"
+        Arbitrum   = "Arbitrum"
+        Base       = "Base"
+        PolygonPoS = "Polygon PoS"
+        Unichain   = "Unichain"
+        Linea      = "Linea"
+        Codex      = "Codex"
+        Sonic      = "Sonic"
+        WorldChain = "World Chain"
+        Sei        = "Sei"
+        XDC        = "XDC"
+        HyperEVM   = "HyperEVM"
+        Ink        = "Ink"
+        Plume      = "Plume"
+    )
+    ```
+  </Tab>
+  <Tab title="Testnet">
+    ```go chains.go:59
+    const (
+        EthereumSepolia   = "Ethereum Sepolia"
+        AvalancheFuji     = "Avalanche Fuji"
+        OPSepolia         = "OP Sepolia"
+        ArbitrumSepolia   = "Arbitrum Sepolia"
+        BaseSepolia       = "Base Sepolia"
+        PolygonPoSAmoy    = "Polygon PoS Amoy"
+        LineaSepolia      = "Linea Sepolia"
+        ArcTestnet        = "Arc Testnet"
+        UnichainSepolia   = "Unichain Sepolia"
+        CodexTestnet      = "Codex Testnet"
+        SonicTestnet      = "Sonic Testnet"
+        WorldChainSepolia = "World Chain Sepolia"
+        SeiTestnet        = "Sei Testnet"
+        XDCApothem        = "XDC Apothem"
+        HyperEVMTestnet   = "HyperEVM Testnet"
+        InkTestnet        = "Ink Testnet"
+        PlumeTestnet      = "Plume Testnet"
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Contract Addresses
+
+<Tip>
+All CCTP V2 chains use standardized contract addresses, making multi-chain integration straightforward.
+</Tip>
+
+### Mainnet Contracts
+
+```go chains.go:90
+const (
+    tokenMessengerV2Addr     = "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
+    messageTransmitterV2Addr = "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+)
+```
+
+### Testnet Contracts
+
+```go chains.go:294
+const (
+    tokenMessengerV2Addr     = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"
+    messageTransmitterV2Addr = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275"
+)
+```
+
+## Domain Mapping
+
+Each chain has a unique CCTP domain identifier:
+
+| Chain | Domain | Instant Finality |
+|-------|--------|------------------|
+| Ethereum | 0 | No |
+| Avalanche | 1 | Yes |
+| OP Mainnet | 2 | No |
+| Arbitrum | 3 | No |
+| Base | 6 | No |
+| Polygon PoS | 7 | Yes |
+| Unichain | 10 | No |
+| Linea | 11 | No |
+| Codex | 12 | No |
+| Sonic | 13 | Yes |
+| World Chain | 14 | No |
+| Sei | 16 | Yes |
+| XDC | 18 | Yes |
+| HyperEVM | 19 | Yes |
+| Ink | 21 | No |
+| Plume | 22 | No |
+
+<Note>
+Testnet chains use the same domain IDs as their mainnet counterparts.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="RPC Overrides" icon="server" href="/sdk/rpc-overrides">
+    Learn how to customize RPC endpoints
+  </Card>
+  <Card title="Transfer Orchestrator" icon="arrows-rotate" href="/sdk/transfer-orchestrator">
+    Use chain configs for transfers
+  </Card>
+</CardGroup>

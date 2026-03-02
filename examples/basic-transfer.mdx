@@ -1,0 +1,143 @@
+---
+title: "Basic Transfer Example"
+description: "Complete example of using the CCTP Go SDK for basic operations"
+---
+
+This example demonstrates the basic usage of the CCTP Go SDK, including getting available chains, creating an Iris client, and polling for attestations.
+
+## What This Example Demonstrates
+
+- Getting available chains for mainnet or testnet
+- Creating an Iris client for attestation polling
+- Polling for attestations using a burn transaction hash
+- Basic error handling
+
+## Complete Code Example
+
+This is the exact example from the SDK README showing the fundamental usage:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "math/big"
+
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get available chains
+    chains := cctp.GetChains(false) // false = mainnet
+
+    // Create an Iris client for attestations
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+
+    // Poll for an attestation
+    ctx := context.Background()
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        0, // source domain (Ethereum)
+        "0x...", // burn transaction hash
+        nil, // optional progress callback
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("Attestation received: %s\n", msg.Attestation)
+}
+```
+
+## Breaking Down the Example
+
+<Steps>
+  <Step title="Get Available Chains">
+    Use `GetChains(false)` to retrieve all mainnet chains. Pass `true` for testnet chains:
+    
+    ```go
+    chains := cctp.GetChains(false) // false = mainnet
+    testnetChains := cctp.GetChains(true) // true = testnet
+    ```
+    
+    The `chains` slice contains all supported CCTP chains with their configuration including RPC endpoints, contract addresses, and domain IDs.
+  </Step>
+
+  <Step title="Create an Iris Client">
+    The IrisClient is used to fetch attestations from Circle's Iris API:
+    
+    ```go
+    irisClient := cctp.NewIrisClient("https://iris-api.circle.com")
+    ```
+    
+    For testnet, use: `https://iris-api-sandbox.circle.com`
+  </Step>
+
+  <Step title="Poll for Attestation">
+    Use the `PollForAttestation` method to wait for an attestation to be ready:
+    
+    ```go
+    ctx := context.Background()
+    msg, err := irisClient.PollForAttestation(
+        ctx,
+        0,       // source domain (Ethereum = 0)
+        "0x...", // burn transaction hash
+        nil,     // optional progress callback
+    )
+    ```
+    
+    The method will automatically retry with exponential backoff until the attestation is ready.
+  </Step>
+
+  <Step title="Handle the Result">
+    Once the attestation is received, you can access various fields:
+    
+    ```go
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Attestation: %s\n", msg.Attestation)
+    fmt.Printf("Message: %s\n", msg.Message)
+    fmt.Printf("Status: %s\n", msg.Status)
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  The progress callback parameter is optional. See [Attestation Polling](/examples/attestation-polling) for an example with progress tracking.
+</Note>
+
+## Chain Domains
+
+Common domain IDs you'll use:
+
+| Chain | Domain |
+|-------|--------|
+| Ethereum | 0 |
+| Avalanche | 1 |
+| OP Mainnet | 2 |
+| Arbitrum | 3 |
+| Base | 6 |
+| Polygon PoS | 7 |
+
+See the [Supported Chains](/reference/supported-chains) page for the complete list.
+
+## Related Examples
+
+- [Custom RPC Endpoints](/examples/custom-rpcs) - Override default RPC endpoints
+- [Attestation Polling](/examples/attestation-polling) - Advanced polling with progress tracking
+- [CLI Usage](/examples/cli-usage) - Using the CLI tool
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chain Configuration" icon="link" href="/sdk/chains">
+    Learn about chain configurations and helper functions
+  </Card>
+  <Card title="Iris Client" icon="satellite" href="/sdk/iris-client">
+    Explore the Iris client for attestation management
+  </Card>
+</CardGroup>

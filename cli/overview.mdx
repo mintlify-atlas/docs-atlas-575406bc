@@ -1,0 +1,206 @@
+---
+title: CLI Overview
+description: Interactive terminal interface for cross-chain USDC transfers with Circle's CCTP V2
+---
+
+The CCTP CLI provides a powerful, user-friendly command-line interface for transferring USDC across multiple blockchain networks using Circle's Cross-Chain Transfer Protocol V2.
+
+## What is the CCTP CLI?
+
+The CCTP CLI is an interactive terminal application that enables you to:
+
+- Transfer USDC seamlessly across 18 mainnet chains and 16 testnet chains
+- Choose between Fast Transfer (~8-20 seconds with fee) or Standard Transfer (~13-19 minutes, no fee)
+- Resume interrupted transfers using transaction hashes
+- Manage wallets through private keys or Ethereum keystore files
+- Configure custom RPC endpoints and default transfer values
+
+## Key Features
+
+### Interactive Terminal UI
+
+The CLI features a rich terminal user interface (TUI) built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) that provides:
+
+- Real-time transfer status updates
+- Step-by-step guidance through the transfer process
+- Chain selection with automatic capability detection
+- Wallet account selection from keystore
+- Mouse and keyboard navigation support
+
+### Dual Transfer Modes
+
+<CardGroup cols={2}>
+  <Card title="Fast Transfer" icon="bolt">
+    Complete transfers in 8-20 seconds using Circle's Fast Transfer Allowance. Small fee applies (1-14 bps depending on chain).
+  </Card>
+  <Card title="Standard Transfer" icon="clock">
+    Wait for hard finality (~13-19 minutes for most chains, ~8 seconds for instant finality chains). No fee - currently 0 bps.
+  </Card>
+</CardGroup>
+
+### Flexible Wallet Support
+
+Authenticate using either:
+
+- **Private Key**: Set via `PRIVATE_KEY` environment variable
+- **Keystore File**: Point to your Ethereum keystore directory with password protection
+
+### Configuration Management
+
+Powered by [Viper](https://github.com/spf13/viper), the CLI supports multiple configuration sources with clear precedence:
+
+1. Command-line flags (highest priority)
+2. Environment variables (with `CCTP_` prefix)
+3. Configuration file (`~/.cctp/config.yaml`)
+4. Default values
+
+## Transfer Types Explained
+
+<Accordion title="Fast Transfer (~8-20 seconds)">
+  **How it works**: Uses Circle's Fast Transfer Allowance to enable faster-than-finality transfers.
+  
+  **Timing**: ~8-20 seconds
+  
+  **Fee**: 1-14 bps (0.01%-0.14%) depending on source chain
+  - Most chains: 1 bps (0.01%)
+  - Linea: 14 bps (0.14%) - highest fee
+  - Ink, Plume: 2 bps (0.02%)
+  
+  **Availability**: Not available when instant finality chains are used as source (Avalanche, Polygon, Sei, Sonic, XDC, HyperEVM, Arc)
+  
+  **Best for**: Time-sensitive transfers where speed is critical
+</Accordion>
+
+<Accordion title="Standard Transfer (~13-19 minutes or ~8 seconds)">
+  **How it works**: Waits for hard finality on the source chain before Circle provides attestation.
+  
+  **Timing**: 
+  - Most chains: ~13-19 minutes
+  - Instant finality chains: ~8 seconds (Avalanche, Polygon, Sei, Sonic, XDC, HyperEVM, Arc)
+  
+  **Fee**: 0 bps (no fee)
+  
+  **Availability**: Available on all chains
+  
+  **Best for**: Cost-conscious transfers or when using instant finality source chains
+</Accordion>
+
+<Accordion title="Auto Mode (Default)">
+  **How it works**: Automatically selects the best transfer type based on chain capabilities.
+  
+  **Logic**:
+  - Uses Fast Transfer when available (non-instant finality source chains)
+  - Falls back to Standard Transfer for instant finality source chains
+  
+  **Best for**: Most users who want the CLI to choose the optimal transfer type
+</Accordion>
+
+## Supported Chains
+
+The CLI supports:
+
+- **18 Mainnet chains**: Ethereum, Avalanche, OP Mainnet, Arbitrum, Base, Polygon PoS, Unichain, Linea, Codex, Sonic, World Chain, Sei, XDC, HyperEVM, Ink, Plume, and more
+- **16 Testnet chains**: Including Sepolia variants and dedicated testnets
+
+<Note>
+  Instant finality chains (Avalanche, Polygon, Sei, Sonic, XDC, HyperEVM, Arc) only support Standard Transfer when used as the source chain, but complete in ~8 seconds with no fee.
+</Note>
+
+## Command Structure
+
+The CLI uses [Cobra](https://github.com/spf13/cobra) for command organization:
+
+```bash
+cctp [command] [flags]
+```
+
+### Available Commands
+
+- `transfer` - Start a new USDC transfer
+- `resume` - Resume an existing transfer by transaction hash
+- `version` - Print CLI version information
+- `help` - Display help for any command
+- `completion` - Generate shell completion scripts
+
+### Global Flags
+
+These flags work with all commands:
+
+- `--config` - Path to config file (default: `$HOME/.cctp/config.yaml`)
+- `--testnet` - Use testnet instead of mainnet
+- `--keystore` - Path to Ethereum keystore directory
+
+## Typical Workflow
+
+<Steps>
+  <Step title="Install the CLI">
+    Install using Go's package manager:
+    ```bash
+    go install github.com/circlefin/cctp-go/cmd/cctp@latest
+    ```
+  </Step>
+  
+  <Step title="Set up wallet authentication">
+    Choose your preferred method:
+    ```bash
+    # Option 1: Private key
+    export PRIVATE_KEY=0x...
+    
+    # Option 2: Keystore
+    cctp transfer --keystore ~/.ethereum/keystore
+    ```
+  </Step>
+  
+  <Step title="Start a transfer">
+    Launch the interactive TUI:
+    ```bash
+    cctp transfer
+    ```
+    Or pre-populate parameters:
+    ```bash
+    cctp transfer --source ethereum --dest arbitrum --amount 100
+    ```
+  </Step>
+  
+  <Step title="Follow the interactive prompts">
+    The TUI guides you through:
+    - Selecting source and destination chains
+    - Choosing transfer type (fast/standard/auto)
+    - Entering amount and recipient address
+    - Confirming transaction details
+  </Step>
+  
+  <Step title="Monitor transfer status">
+    The CLI displays real-time status updates showing:
+    - Transaction submission
+    - Attestation progress
+    - Completion confirmation
+  </Step>
+</Steps>
+
+## Version Information
+
+Current CLI version: **0.2.0**
+
+Check your installed version:
+
+```bash
+cctp version
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/cli/installation">
+    Install the CLI using Go's package manager
+  </Card>
+  <Card title="Commands" icon="terminal" href="/cli/commands">
+    Learn all available CLI commands and flags
+  </Card>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Set up config files, keystores, and RPC endpoints
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Complete tutorial from installation to first transfer
+  </Card>
+</CardGroup>

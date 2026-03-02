@@ -1,0 +1,185 @@
+---
+title: "Supported Chains"
+description: "Complete list of EVM chains supported by CCTP Go SDK"
+---
+
+## Overview
+
+CCTP Go SDK supports **18 mainnet chains** and **17 testnet chains** across multiple EVM networks. All chains use standardized contract addresses for CCTP V2.
+
+## Mainnet Chains (18)
+
+| Chain | Domain | Chain ID | Instant Finality | USDC Address |
+|-------|--------|----------|------------------|-------------|
+| **Ethereum** | 0 | 1 | No | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **Avalanche** | 1 | 43114 | Yes | `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E` |
+| **OP Mainnet** | 2 | 10 | No | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` |
+| **Arbitrum** | 3 | 42161 | No | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
+| **Base** | 6 | 8453 | No | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| **Polygon PoS** | 7 | 137 | Yes | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
+| **Unichain** | 10 | 1301 | No | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **Linea** | 11 | 59144 | No | `0x176211869cA2b568f2A7D4EE941E073a821EE1ff` |
+| **Codex** | 12 | 5115 | No | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **Sonic** | 13 | 146 | Yes | `0x29219dd400f2Bf60E5a23d13Be72B486D4038894` |
+| **World Chain** | 14 | 480 | No | `0x79A02482A880bCE3F13e09Da970dC34db4CD24d1` |
+| **Sei** | 16 | 1329 | Yes | `0x3894085Ef7Ff0f0aeDf52E2A2704928d1Ec074F1` |
+| **XDC** | 18 | 50 | Yes | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **HyperEVM** | 19 | 998 | Yes | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **Ink** | 21 | 57073 | No | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **Plume** | 22 | 98865 | No | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+
+### Mainnet Contract Addresses
+
+All mainnet chains use the same CCTP V2 contract addresses:
+
+- **TokenMessengerV2:** `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`
+- **MessageTransmitterV2:** `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64`
+
+## Testnet Chains (17)
+
+| Chain | Domain | Chain ID | Instant Finality |
+|-------|--------|----------|------------------|
+| **Ethereum Sepolia** | 0 | 11155111 | No |
+| **Avalanche Fuji** | 1 | 43113 | Yes |
+| **OP Sepolia** | 2 | 11155420 | No |
+| **Arbitrum Sepolia** | 3 | 421614 | No |
+| **Base Sepolia** | 6 | 84532 | No |
+| **Polygon PoS Amoy** | 7 | 80002 | Yes |
+| **Unichain Sepolia** | 10 | 1301 | No |
+| **Linea Sepolia** | 11 | 59141 | No |
+| **Codex Testnet** | 12 | 5115 | No |
+| **Sonic Testnet** | 13 | 57054 | Yes |
+| **World Chain Sepolia** | 14 | 4801 | No |
+| **Sei Testnet** | 16 | 1328 | Yes |
+| **XDC Apothem** | 18 | 51 | Yes |
+| **HyperEVM Testnet** | 19 | 999 | Yes |
+| **Ink Testnet** | 21 | 763373 | No |
+| **Plume Testnet** | 22 | 161221135 | No |
+| **Arc Testnet** | 26 | 5042002 | Yes |
+
+### Testnet Contract Addresses
+
+All testnet chains use the same CCTP V2 contract addresses:
+
+- **TokenMessengerV2:** `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`
+- **MessageTransmitterV2:** `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275`
+
+## Instant Finality Chains
+
+These chains have instant finality, enabling faster Standard Transfers (~8 seconds instead of 13-19 minutes):
+
+**Mainnet:**
+- Avalanche (Domain 1)
+- Polygon PoS (Domain 7)
+- Sonic (Domain 13)
+- Sei (Domain 16)
+- XDC (Domain 18)
+- HyperEVM (Domain 19)
+
+**Testnet:**
+- Avalanche Fuji (Domain 1)
+- Polygon PoS Amoy (Domain 7)
+- Sonic Testnet (Domain 13)
+- Sei Testnet (Domain 16)
+- XDC Apothem (Domain 18)
+- HyperEVM Testnet (Domain 19)
+- Arc Testnet (Domain 26)
+
+<Note>
+Fast Transfer is not available when instant finality chains are the source, as Standard Transfer already provides fast confirmation.
+</Note>
+
+## Getting Chains in Code
+
+```go
+import "github.com/circlefin/cctp-go"
+
+// Get all mainnet chains
+mainnetChains := cctp.GetChains(false)
+
+// Get all testnet chains
+testnetChains := cctp.GetChains(true)
+
+// Get chain by domain
+chain, err := cctp.GetChainByDomain(0, false) // Ethereum
+
+// Get chain by name (type-safe with constants)
+chain, err := cctp.GetChainByName(cctp.Arbitrum, false)
+```
+
+## Chain Name Constants
+
+The SDK provides constants for type-safe chain references:
+
+**Mainnet:**
+```go
+cctp.Ethereum
+cctp.Avalanche
+cctp.OPMainnet
+cctp.Arbitrum
+cctp.Base
+cctp.PolygonPoS
+cctp.Unichain
+cctp.Linea
+cctp.Codex
+cctp.Sonic
+cctp.WorldChain
+cctp.Sei
+cctp.XDC
+cctp.HyperEVM
+cctp.Ink
+cctp.Plume
+```
+
+**Testnet:**
+```go
+cctp.EthereumSepolia
+cctp.AvalancheFuji
+cctp.OPSepolia
+cctp.ArbitrumSepolia
+cctp.BaseSepolia
+cctp.PolygonPoSAmoy
+cctp.LineaSepolia
+cctp.UnichainSepolia
+cctp.CodexTestnet
+cctp.SonicTestnet
+cctp.WorldChainSepolia
+cctp.SeiTestnet
+cctp.XDCApothem
+cctp.HyperEVMTestnet
+cctp.InkTestnet
+cctp.PlumeTestnet
+```
+
+## RPC Endpoints
+
+The SDK provides default public RPC endpoints for all chains. You can override them:
+
+```go
+chains := cctp.GetChains(false)
+
+customRPCs := map[string]string{
+    cctp.Ethereum: "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    cctp.Arbitrum: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    cctp.Base:     "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+}
+
+chains = cctp.ApplyRPCOverrides(chains, customRPCs)
+```
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Transfer Types" href="/concepts/transfer-types">
+    Learn about Fast and Standard transfers
+  </Card>
+  <Card title="Finality" href="/concepts/finality">
+    Understand finality thresholds
+  </Card>
+  <Card title="Chain API" href="/api/chain">
+    Chain type reference
+  </Card>
+  <Card title="RPC Overrides" href="/sdk/rpc-overrides">
+    Custom RPC configuration
+  </Card>
+</CardGroup>

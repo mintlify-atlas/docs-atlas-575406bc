@@ -1,0 +1,171 @@
+---
+title: GetChainByName
+description: Returns a chain configuration by its name
+---
+
+## Function Signature
+
+```go
+func GetChainByName(name string, testnet bool) (*Chain, error)
+```
+
+Returns a specific chain configuration by looking up its name. This is useful when you know the chain name and need its configuration details, contract addresses, and RPC endpoints.
+
+## Parameters
+
+<ParamField path="name" type="string" required>
+  The chain name to search for. Must match exactly (case-sensitive). Use the chain name constants from the SDK for type safety (e.g., `cctp.Ethereum`, `cctp.Arbitrum`)
+</ParamField>
+
+<ParamField path="testnet" type="bool" required>
+  Set to `true` to search testnet chains, or `false` to search mainnet chains
+</ParamField>
+
+## Returns
+
+<ResponseField name="chain" type="*Chain">
+  Pointer to a Chain struct containing the blockchain configuration, or `nil` if not found. The Chain includes:
+  
+  - `Name` (string) - Chain name
+  - `ChainID` (*big.Int) - EVM chain ID
+  - `Domain` (uint32) - CCTP domain identifier
+  - `RPC` (string) - Default RPC endpoint URL
+  - `TokenMessengerV2` (string) - TokenMessenger V2 contract address
+  - `MessageTransmitterV2` (string) - MessageTransmitter V2 contract address
+  - `USDC` (string) - USDC token contract address
+  - `Explorer` (string) - Block explorer URL
+  - `IsTestnet` (bool) - Whether this is a testnet chain
+  - `InstantFinality` (bool) - Whether the chain has instant finality
+</ResponseField>
+
+<ResponseField name="error" type="error">
+  Error if the chain with the specified name is not found. Returns `nil` if successful.
+</ResponseField>
+
+## Usage Example
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/circlefin/cctp-go"
+)
+
+func main() {
+    // Get Ethereum mainnet using constant (recommended)
+    chain, err := cctp.GetChainByName(cctp.Ethereum, false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Chain: %s\n", chain.Name)
+    fmt.Printf("Domain: %d\n", chain.Domain)
+    fmt.Printf("Chain ID: %s\n", chain.ChainID.String())
+    fmt.Printf("RPC: %s\n", chain.RPC)
+    
+    // Get Base mainnet
+    base, err := cctp.GetChainByName(cctp.Base, false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("\nChain: %s\n", base.Name)
+    fmt.Printf("USDC Address: %s\n", base.USDC)
+    fmt.Printf("Explorer: %s\n", base.Explorer)
+    
+    // Get Arbitrum Sepolia testnet
+    arbSepolia, err := cctp.GetChainByName(cctp.ArbitrumSepolia, true)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("\nTestnet Chain: %s\n", arbSepolia.Name)
+    fmt.Printf("TokenMessenger V2: %s\n", arbSepolia.TokenMessengerV2)
+    fmt.Printf("Instant Finality: %v\n", arbSepolia.InstantFinality)
+    
+    // Using string literal (not recommended, but supported)
+    polygon, err := cctp.GetChainByName("Polygon PoS", false)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("\nChain: %s\n", polygon.Name)
+    fmt.Printf("Instant Finality: %v\n", polygon.InstantFinality)
+    
+    // Handle chain not found
+    _, err = cctp.GetChainByName("Unknown Chain", false)
+    if err != nil {
+        fmt.Printf("\nError: %s\n", err.Error())
+        // Output: Error: chain Unknown Chain not found
+    }
+}
+```
+
+## Chain Name Constants
+
+Use these constants for type-safe chain name references:
+
+### Mainnet
+
+```go
+cctp.Ethereum   // "Ethereum"
+cctp.Avalanche  // "Avalanche"
+cctp.OPMainnet  // "OP Mainnet"
+cctp.Arbitrum   // "Arbitrum"
+cctp.Base       // "Base"
+cctp.PolygonPoS // "Polygon PoS"
+cctp.Unichain   // "Unichain"
+cctp.Linea      // "Linea"
+cctp.Codex      // "Codex"
+cctp.Sonic      // "Sonic"
+cctp.WorldChain // "World Chain"
+cctp.Sei        // "Sei"
+cctp.XDC        // "XDC"
+cctp.HyperEVM   // "HyperEVM"
+cctp.Ink        // "Ink"
+cctp.Plume      // "Plume"
+```
+
+### Testnet
+
+```go
+cctp.EthereumSepolia   // "Ethereum Sepolia"
+cctp.AvalancheFuji     // "Avalanche Fuji"
+cctp.OPSepolia         // "OP Sepolia"
+cctp.ArbitrumSepolia   // "Arbitrum Sepolia"
+cctp.BaseSepolia       // "Base Sepolia"
+cctp.PolygonPoSAmoy    // "Polygon PoS Amoy"
+cctp.LineaSepolia      // "Linea Sepolia"
+cctp.ArcTestnet        // "Arc Testnet"
+cctp.UnichainSepolia   // "Unichain Sepolia"
+cctp.CodexTestnet      // "Codex Testnet"
+cctp.SonicTestnet      // "Sonic Testnet"
+cctp.WorldChainSepolia // "World Chain Sepolia"
+cctp.SeiTestnet        // "Sei Testnet"
+cctp.XDCApothem        // "XDC Apothem"
+cctp.HyperEVMTestnet   // "HyperEVM Testnet"
+cctp.InkTestnet        // "Ink Testnet"
+cctp.PlumeTestnet      // "Plume Testnet"
+```
+
+<Note>
+  Chain names are case-sensitive and must match exactly. Using the provided constants is recommended to avoid typos and enable IDE autocomplete.
+</Note>
+
+## Error Handling
+
+The function returns an error with the message `"chain %s not found"` if no chain matches the specified name.
+
+## Best Practices
+
+1. **Use constants**: Always use the chain name constants (e.g., `cctp.Ethereum`) instead of string literals
+2. **IDE autocomplete**: Constants provide autocomplete support in most IDEs
+3. **Type safety**: Constants prevent typos and ensure valid chain names
+4. **Case sensitivity**: If using string literals, ensure exact case matching
+
+## Related Functions
+
+- [GetChains](/api/get-chains) - Get all configured chains
+- [GetChainByDomain](/api/get-chain-by-domain) - Find a specific chain by its domain ID
+- [ApplyRPCOverrides](/api/apply-rpc-overrides) - Override default RPC endpoints
