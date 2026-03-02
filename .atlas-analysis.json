@@ -1,0 +1,122 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "CCTP Go SDK",
+  "projectDescription": "Go SDK and CLI for Circle's Cross-Chain Transfer Protocol (CCTP) enabling seamless USDC transfers across EVM chains",
+  "theme": "mint",
+  "primaryColor": "#3b82f6",
+  "lightColor": "#60a5fa",
+  "darkColor": "#1e40af",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "SDK Guide",
+            "pages": [
+              "sdk/overview",
+              "sdk/chains",
+              "sdk/iris-client",
+              "sdk/transfer-orchestrator",
+              "sdk/rpc-overrides",
+              "sdk/contract-bindings"
+            ]
+          },
+          {
+            "group": "CLI Guide",
+            "pages": [
+              "cli/overview",
+              "cli/installation",
+              "cli/commands",
+              "cli/configuration"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/transfer-types",
+              "concepts/supported-chains",
+              "concepts/finality",
+              "concepts/fees"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-transfer",
+              "examples/custom-rpcs",
+              "examples/attestation-polling",
+              "examples/cli-usage"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Types",
+            "pages": [
+              "api/chain",
+              "api/transfer-params",
+              "api/transfer-orchestrator",
+              "api/iris-client"
+            ]
+          },
+          {
+            "group": "Functions",
+            "pages": [
+              "api/get-chains",
+              "api/get-chain-by-domain",
+              "api/get-chain-by-name",
+              "api/apply-rpc-overrides"
+            ]
+          },
+          {
+            "group": "Contract Bindings",
+            "pages": [
+              "api/token-messenger-v2",
+              "api/message-transmitter-v2",
+              "api/ierc20"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Cross-chain USDC transfers via Circle's CCTP V2",
+    "Support for 18+ mainnet and 10+ testnet EVM chains",
+    "Fast Transfer mode (~8-20 seconds with fee)",
+    "Standard Transfer mode (~13-19 minutes, no fee)",
+    "Type-safe Go Ethereum V2 contract bindings",
+    "Iris attestation client with automatic polling",
+    "CLI tool with interactive TUI",
+    "Configurable RPC endpoints",
+    "Comprehensive transfer orchestration",
+    "Support for multiple wallet types (keystore, private keys)"
+  ],
+  "publicApiSurface": [
+    "GetChains(testnet bool) []Chain",
+    "GetChainByDomain(domain uint32, testnet bool) (*Chain, error)",
+    "GetChainByName(name string, testnet bool) (*Chain, error)",
+    "ApplyRPCOverrides(chains []Chain, overrides map[string]string) []Chain",
+    "NewIrisClient(baseURL string) *IrisClient",
+    "IrisClient.GetMessages(ctx context.Context, sourceDomain uint32, txHash string) (*MessagesResponse, error)",
+    "IrisClient.PollForAttestation(ctx context.Context, sourceDomain uint32, txHash string, progressCallback func(int, time.Duration)) (*Message, error)",
+    "IrisClient.GetTransferFees(ctx context.Context, sourceDomain, destDomain uint32) (*FeesResponse, error)",
+    "NewTransferOrchestrator(wallet *Wallet, params *TransferParams, irisBaseURL string) (*TransferOrchestrator, error)",
+    "TransferOrchestrator.Execute(ctx context.Context, updates chan<- TransferUpdate) error",
+    "tokenmessenger.NewTokenMessengerV2() *TokenMessengerV2",
+    "tokenmessenger.NewIERC20() *IERC20",
+    "messagetransmitter.NewMessageTransmitterV2() *MessageTransmitterV2"
+  ]
+}
